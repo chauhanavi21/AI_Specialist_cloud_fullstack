@@ -60,7 +60,7 @@ VALUES
 -- Seed Past Order for Alex Rivera (User 1) - eligible for Buy It Again
 INSERT INTO orders (id, order_number, user_id, address_id, order_status, payment_status, subtotal, tax, shipping_fee, total_amount, points_redeemed, points_discount, points_earned, payment_method, card_last4, estimated_delivery_date, created_at)
 VALUES 
-(1, 'BK-20261101-4401', 1, 1, 'CONFIRMED', 'PAID', 49.99, 4.00, 0.00, 53.99, 0, 0.00, 5, 'CREDIT_CARD', '4242', CURRENT_DATE + 2, CURRENT_TIMESTAMP - INTERVAL '12 HOUR');
+(1, 'BK-20261101-4401', 1, 1, 'CONFIRMED', 'PAID', 49.99, 4.00, 0.00, 53.99, 0, 0.00, 5, 'CREDIT_CARD', '4242', CURRENT_DATE, CURRENT_TIMESTAMP);
 
 INSERT INTO order_items (id, order_id, book_id, book_title, book_author, cover_image_url, quantity, unit_price, total_price)
 VALUES 
@@ -69,6 +69,6 @@ VALUES
 -- Seed Gift Points Ledger
 INSERT INTO gift_points_ledger (id, user_id, order_id, points, type, description, created_at)
 VALUES 
-(1, 1, NULL, 200, 'EARNED', 'Welcome Sign-up Bonus', CURRENT_TIMESTAMP - INTERVAL '5 DAY'),
-(2, 1, NULL, 45, 'EARNED', 'Review and Profile Completion Reward', CURRENT_TIMESTAMP - INTERVAL '3 DAY'),
-(3, 1, 1, 5, 'EARNED', 'Earned from Order #BK-20261101-4401', CURRENT_TIMESTAMP - INTERVAL '12 HOUR');
+(1, 1, NULL, 200, 'EARNED', 'Welcome Sign-up Bonus', CURRENT_TIMESTAMP),
+(2, 1, NULL, 45, 'EARNED', 'Review and Profile Completion Reward', CURRENT_TIMESTAMP),
+(3, 1, 1, 5, 'EARNED', 'Earned from Order #BK-20261101-4401', CURRENT_TIMESTAMP);
