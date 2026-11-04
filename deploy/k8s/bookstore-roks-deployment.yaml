@@ -1,0 +1,136 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: bookstore-capstone
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: bookstore-secrets
+  namespace: bookstore-capstone
+type: Opaque
+stringData:
+  postgres-password: "bookstore_secure_pass_2026"
+  jwt-secret: "4c617073746f6e6553757065725365637572654a57545369676e696e674b65793230323649424d426f625370656369616c697374"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bookstore-backend
+  namespace: bookstore-capstone
+  labels:
+    app: bookstore-backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: bookstore-backend
+  template:
+    metadata:
+      labels:
+        app: bookstore-backend
+    spec:
+      containers:
+        - name: backend
+          image: image-registry.openshift-image-registry.svc:5000/bookstore-capstone/bookstore-backend:latest
+          ports:
+            - containerPort: 8080
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: "postgres"
+            - name: SPRING_DATASOURCE_URL
+              value: "jdbc:postgresql://bookstore-postgres:5432/bookstoredb"
+            - name: SPRING_DATASOURCE_USERNAME
+              value: "postgres"
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: bookstore-secrets
+                  key: postgres-password
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: bookstore-secrets
+                  key: jwt-secret
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "250m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+          readinessProbe:
+            httpGet:
+              path: /api/v1/actuator/health
+              port: 8080
+            initialDelaySeconds: 20
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: bookstore-backend
+  namespace: bookstore-capstone
+spec:
+  selector:
+    app: bookstore-backend
+  ports:
+    - port: 8080
+      targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bookstore-frontend
+  namespace: bookstore-capstone
+  labels:
+    app: bookstore-frontend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: bookstore-frontend
+  template:
+    metadata:
+      labels:
+        app: bookstore-frontend
+    spec:
+      containers:
+        - name: frontend
+          image: image-registry.openshift-image-registry.svc:5000/bookstore-capstone/bookstore-frontend:latest
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: bookstore-frontend
+  namespace: bookstore-capstone
+spec:
+  selector:
+    app: bookstore-frontend
+  ports:
+    - port: 80
+      targetPort: 80
+---
+# OpenShift Route for ROKS / ROSA ingress
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: bookstore-route
+  namespace: bookstore-capstone
+spec:
+  to:
+    kind: Service
+    name: bookstore-frontend
+  port:
+    targetPort: 80
+  tls:
+    termination: edge
