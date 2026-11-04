@@ -63,7 +63,7 @@ if "%MAVEN_PROJECTBASEDIR:~-1%"=="\" set "MAVEN_PROJECTBASEDIR=%MAVEN_PROJECTBAS
 set "WRAPPER_JAR=%MAVEN_PROJECTBASEDIR%\.mvn\wrapper\maven-wrapper.jar"
 set "WRAPPER_LAUNCHER=org.apache.maven.wrapper.MavenWrapperMain"
 
-"%JAVACMD%" -jar "%WRAPPER_JAR%" %*
+"%JAVACMD%" -Dmaven.multiModuleProjectDirectory="%MAVEN_PROJECTBASEDIR%" -cp "%WRAPPER_JAR%" %WRAPPER_LAUNCHER% %*
 if ERRORLEVEL 1 goto error
 goto end
 
