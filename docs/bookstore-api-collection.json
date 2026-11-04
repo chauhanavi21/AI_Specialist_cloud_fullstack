@@ -1,0 +1,223 @@
+{
+  "info": {
+    "name": "IBM Bob Bookstore Capstone API Collection",
+    "description": "Comprehensive automated REST API test collection covering the 12-step customer journey, JWT auth, shopping cart, gift points redemption, and 48-hour order cancellation.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "1. Authentication",
+      "item": [
+        {
+          "name": "Register Customer",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Jane Doe\",\n  \"email\": \"jane.doe@example.com\",\n  \"password\": \"SecurePass123!\",\n  \"phoneNumber\": \"+1-555-0199\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/auth/register", "host": ["{{baseUrl}}"], "path": ["auth", "register"] }
+          }
+        },
+        {
+          "name": "Login (Obtain JWT)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"alex.dev@ibm.com\",\n  \"password\": \"Password123!\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/auth/login", "host": ["{{baseUrl}}"], "path": ["auth", "login"] }
+          }
+        },
+        {
+          "name": "Get Current User Profile",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{jwtToken}}" }],
+            "url": { "raw": "{{baseUrl}}/auth/me", "host": ["{{baseUrl}}"], "path": ["auth", "me"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Catalog & Books",
+      "item": [
+        {
+          "name": "Get Categories",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/categories", "host": ["{{baseUrl}}"], "path": ["categories"] }
+          }
+        },
+        {
+          "name": "Get Publishers / Brands",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/publishers", "host": ["{{baseUrl}}"], "path": ["publishers"] }
+          }
+        },
+        {
+          "name": "Search Books (with filters & tentative delivery dates)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/books?query=Cloud&sortBy=featured&page=0&size=12",
+              "host": ["{{baseUrl}}"],
+              "path": ["books"],
+              "query": [
+                { "key": "query", "value": "Cloud" },
+                { "key": "sortBy", "value": "featured" },
+                { "key": "page", "value": "0" },
+                { "key": "size", "value": "12" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Book by ID",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/books/1", "host": ["{{baseUrl}}"], "path": ["books", "1"] }
+          }
+        },
+        {
+          "name": "Get Related Books",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/books/1/related?limit=4", "host": ["{{baseUrl}}"], "path": ["books", "1", "related"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Recommendations & Loyalty",
+      "item": [
+        {
+          "name": "Get History-Based Recommendations",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{jwtToken}}" }],
+            "url": { "raw": "{{baseUrl}}/recommendations/history?limit=6", "host": ["{{baseUrl}}"], "path": ["recommendations", "history"] }
+          }
+        },
+        {
+          "name": "Get Gift Points Wallet Summary",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{jwtToken}}" }],
+            "url": { "raw": "{{baseUrl}}/users/points", "host": ["{{baseUrl}}"], "path": ["users", "points"] }
+          }
+        },
+        {
+          "name": "Get Saved Delivery Addresses",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{jwtToken}}" }],
+            "url": { "raw": "{{baseUrl}}/users/addresses", "host": ["{{baseUrl}}"], "path": ["users", "addresses"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Shopping Cart",
+      "item": [
+        {
+          "name": "Get Active Cart",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{jwtToken}}" }],
+            "url": { "raw": "{{baseUrl}}/cart", "host": ["{{baseUrl}}"], "path": ["cart"] }
+          }
+        },
+        {
+          "name": "Add Book to Cart",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwtToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"bookId\": 2,\n  \"quantity\": 1\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/cart", "host": ["{{baseUrl}}"], "path": ["cart"] }
+          }
+        },
+        {
+          "name": "Update Cart Item Quantity",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwtToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"quantity\": 2\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/cart/items/1", "host": ["{{baseUrl}}"], "path": ["cart", "items", "1"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Orders & 48h Cancellation",
+      "item": [
+        {
+          "name": "Place Order (with points redemption)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwtToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"addressId\": 1,\n  \"paymentMethod\": \"CREDIT_CARD\",\n  \"cardLast4\": \"4242\",\n  \"pointsToRedeem\": 50\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/orders", "host": ["{{baseUrl}}"], "path": ["orders"] }
+          }
+        },
+        {
+          "name": "Get Order History",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{jwtToken}}" }],
+            "url": { "raw": "{{baseUrl}}/orders", "host": ["{{baseUrl}}"], "path": ["orders"] }
+          }
+        },
+        {
+          "name": "Buy It Again (1-Click Reorder)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{jwtToken}}" }],
+            "url": { "raw": "{{baseUrl}}/orders/1/reorder", "host": ["{{baseUrl}}"], "path": ["orders", "1", "reorder"] }
+          }
+        },
+        {
+          "name": "Cancel Order (Within 48 Hours)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwtToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Found a better price elsewhere / cancelled within 48h\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/orders/1/cancel", "host": ["{{baseUrl}}"], "path": ["orders", "1", "cancel"] }
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080/api/v1" },
+    { "key": "jwtToken", "value": "" }
+  ]
+}
