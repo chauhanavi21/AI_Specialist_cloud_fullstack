@@ -1,6 +1,7 @@
-﻿target/
+target/
 *.class
 *.jar
+!backend/.mvn/wrapper/maven-wrapper.jar
 *.log
 node_modules/
 dist/
@@ -8,3 +9,9 @@ dist/
 .idea/
 .vscode/
 *.db
+
+# Local-only artifacts
+~$*
+*.pptx
+Screenshot*.png
+frontend/dist/
