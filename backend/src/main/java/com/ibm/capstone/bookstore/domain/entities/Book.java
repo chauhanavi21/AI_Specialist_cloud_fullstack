@@ -2,6 +2,7 @@ package com.ibm.capstone.bookstore.domain.entities;
 
 import jakarta.persistence.*;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 
 @Entity
 @Table(name = "books")
@@ -14,8 +15,14 @@ public class Book {
     @Column(nullable = false)
     private String title;
 
+    /** Display name of the writer(s), kept as plain text because some titles have co-authors. */
     @Column(nullable = false)
     private String author;
+
+    /** Primary writer profile (bio, photo, follow). */
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "author_id")
+    private Author writer;
 
     @Column(nullable = false, unique = true, length = 20)
     private String isbn;
@@ -43,7 +50,7 @@ public class Book {
     @Column(name = "review_count", nullable = false)
     private Integer reviewCount = 0;
 
-    @Column(name = "cover_image_url", nullable = false, length = 500)
+    @Column(name = "cover_image_url", length = 500)
     private String coverImageUrl;
 
     @Column(nullable = false, columnDefinition = "TEXT")
@@ -52,8 +59,20 @@ public class Book {
     @Column(name = "published_year", nullable = false)
     private Integer publishedYear;
 
+    @Column(name = "launch_date", nullable = false)
+    private LocalDate launchDate = LocalDate.now();
+
     @Column(name = "page_count", nullable = false)
     private Integer pageCount;
+
+    @Column(name = "book_language", nullable = false, length = 50)
+    private String language = "English";
+
+    @Column(name = "book_format", nullable = false, length = 30)
+    private String format = "Paperback";
+
+    @Column(name = "copies_sold", nullable = false)
+    private Integer copiesSold = 0;
 
     @Column(name = "tentative_delivery_days", nullable = false)
     private Integer tentativeDeliveryDays = 2;
@@ -71,6 +90,9 @@ public class Book {
 
     public String getAuthor() { return author; }
     public void setAuthor(String author) { this.author = author; }
+
+    public Author getWriter() { return writer; }
+    public void setWriter(Author writer) { this.writer = writer; }
 
     public String getIsbn() { return isbn; }
     public void setIsbn(String isbn) { this.isbn = isbn; }
@@ -105,8 +127,20 @@ public class Book {
     public Integer getPublishedYear() { return publishedYear; }
     public void setPublishedYear(Integer publishedYear) { this.publishedYear = publishedYear; }
 
+    public LocalDate getLaunchDate() { return launchDate; }
+    public void setLaunchDate(LocalDate launchDate) { this.launchDate = launchDate; }
+
     public Integer getPageCount() { return pageCount; }
     public void setPageCount(Integer pageCount) { this.pageCount = pageCount; }
+
+    public String getLanguage() { return language; }
+    public void setLanguage(String language) { this.language = language; }
+
+    public String getFormat() { return format; }
+    public void setFormat(String format) { this.format = format; }
+
+    public Integer getCopiesSold() { return copiesSold; }
+    public void setCopiesSold(Integer copiesSold) { this.copiesSold = copiesSold; }
 
     public Integer getTentativeDeliveryDays() { return tentativeDeliveryDays; }
     public void setTentativeDeliveryDays(Integer tentativeDeliveryDays) { this.tentativeDeliveryDays = tentativeDeliveryDays; }

@@ -27,7 +27,7 @@ public class OrderItem {
     @Column(name = "book_author", nullable = false)
     private String bookAuthor;
 
-    @Column(name = "cover_image_url", nullable = false, length = 500)
+    @Column(name = "cover_image_url", length = 500)
     private String coverImageUrl;
 
     @Column(nullable = false)

@@ -48,6 +48,18 @@ public class Order {
     @Column(name = "total_amount", nullable = false, precision = 10, scale = 2)
     private BigDecimal totalAmount;
 
+    @Column(name = "coupon_code", length = 40)
+    private String couponCode;
+
+    @Column(name = "coupon_discount", nullable = false, precision = 10, scale = 2)
+    private BigDecimal couponDiscount = BigDecimal.ZERO;
+
+    @Column(name = "wallet_amount_used", nullable = false, precision = 10, scale = 2)
+    private BigDecimal walletAmountUsed = BigDecimal.ZERO;
+
+    @Column(name = "payment_reference", length = 100)
+    private String paymentReference;
+
     @Column(name = "points_redeemed", nullable = false)
     private Integer pointsRedeemed = 0;
 
@@ -110,6 +122,18 @@ public class Order {
 
     public BigDecimal getTotalAmount() { return totalAmount; }
     public void setTotalAmount(BigDecimal totalAmount) { this.totalAmount = totalAmount; }
+
+    public String getCouponCode() { return couponCode; }
+    public void setCouponCode(String couponCode) { this.couponCode = couponCode; }
+
+    public BigDecimal getCouponDiscount() { return couponDiscount; }
+    public void setCouponDiscount(BigDecimal couponDiscount) { this.couponDiscount = couponDiscount; }
+
+    public BigDecimal getWalletAmountUsed() { return walletAmountUsed; }
+    public void setWalletAmountUsed(BigDecimal walletAmountUsed) { this.walletAmountUsed = walletAmountUsed; }
+
+    public String getPaymentReference() { return paymentReference; }
+    public void setPaymentReference(String paymentReference) { this.paymentReference = paymentReference; }
 
     public Integer getPointsRedeemed() { return pointsRedeemed; }
     public void setPointsRedeemed(Integer pointsRedeemed) { this.pointsRedeemed = pointsRedeemed; }

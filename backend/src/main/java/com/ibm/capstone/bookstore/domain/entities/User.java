@@ -28,6 +28,9 @@ public class User {
     @Column(name = "gift_points_balance", nullable = false)
     private Integer giftPointsBalance = 150;
 
+    @Column(name = "wallet_balance", nullable = false, precision = 10, scale = 2)
+    private java.math.BigDecimal walletBalance = java.math.BigDecimal.ZERO;
+
     @Column(nullable = false)
     private String role = "ROLE_CUSTOMER";
 
@@ -66,6 +69,9 @@ public class User {
 
     public Integer getGiftPointsBalance() { return giftPointsBalance; }
     public void setGiftPointsBalance(Integer giftPointsBalance) { this.giftPointsBalance = giftPointsBalance; }
+
+    public java.math.BigDecimal getWalletBalance() { return walletBalance; }
+    public void setWalletBalance(java.math.BigDecimal walletBalance) { this.walletBalance = walletBalance; }
 
     public String getRole() { return role; }
     public void setRole(String role) { this.role = role; }
