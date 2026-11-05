@@ -111,4 +111,13 @@ public class BookServiceTest {
         assertEquals(1, pageResponse.getContent().size());
         assertEquals("Enterprise Cloud Native Architecture", pageResponse.getContent().get(0).getTitle());
     }
+
+    @Test
+    @DisplayName("Verify BCrypt Password Encoding")
+    void testBCryptEncoder() {
+        org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder encoder = new org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder();
+        String hash = encoder.encode("Password123!");
+        System.out.println("BCRYPT_HASH_OUTPUT=" + hash);
+        assertTrue(encoder.matches("Password123!", hash));
+    }
 }

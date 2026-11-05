@@ -50,14 +50,14 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .headers(headers -> headers.frameOptions(HeadersConfigurer.FrameOptionsConfig::disable))
                 .authorizeHttpRequests(auth -> auth
-                        // Public Endpoints
-                        .requestMatchers("/api/v1/auth/register", "/api/v1/auth/login").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/v1/categories/**").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/v1/publishers/**").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/v1/books/**").permitAll()
+                        // Public Endpoints (matches with or without servlet context path)
+                        .requestMatchers("/auth/**", "/api/v1/auth/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/categories/**", "/api/v1/categories/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/publishers/**", "/api/v1/publishers/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/books/**", "/api/v1/books/**").permitAll()
                         // Swagger & Actuator & H2
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
-                        .requestMatchers("/actuator/health", "/actuator/info").permitAll()
+                        .requestMatchers("/actuator/**").permitAll()
                         .requestMatchers("/h2-console/**").permitAll()
                         // Protected Endpoints
                         .anyRequest().authenticated()

@@ -56,7 +56,7 @@ public class OrderController {
         return ResponseEntity.ok(orderService.cancelOrder(principal.getId(), orderId, request));
     }
 
-    @PostMapping("/{orderId}/reorder")
+    @PostMapping(value = {"/{orderId}/reorder", "/{orderId}/buy-again"})
     @Operation(summary = "Buy It Again: 1-click re-add order items to cart")
     public ResponseEntity<CartResponse> buyItAgain(
             @AuthenticationPrincipal UserPrincipal principal,

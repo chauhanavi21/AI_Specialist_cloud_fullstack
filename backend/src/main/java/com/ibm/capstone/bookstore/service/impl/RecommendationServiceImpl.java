@@ -19,14 +19,11 @@ public class RecommendationServiceImpl implements RecommendationService {
 
     private final OrderRepository orderRepository;
     private final BookRepository bookRepository;
-    private final BookServiceImpl bookService;
 
     public RecommendationServiceImpl(OrderRepository orderRepository,
-                                     BookRepository bookRepository,
-                                     BookServiceImpl bookService) {
+                                     BookRepository bookRepository) {
         this.orderRepository = orderRepository;
         this.bookRepository = bookRepository;
-        this.bookService = bookService;
     }
 
     @Override
@@ -56,7 +53,29 @@ public class RecommendationServiceImpl implements RecommendationService {
         }
 
         return recommendedBooks.stream()
-                .map(bookService::mapToBookSummary)
+                .map(this::mapToBookSummary)
                 .collect(Collectors.toList());
+    }
+
+    private BookSummaryResponse mapToBookSummary(Book book) {
+        BookSummaryResponse dto = new BookSummaryResponse();
+        dto.setId(book.getId());
+        dto.setTitle(book.getTitle());
+        dto.setAuthor(book.getAuthor());
+        dto.setIsbn(book.getIsbn());
+        dto.setPrice(book.getPrice());
+        dto.setOriginalPrice(book.getOriginalPrice());
+        dto.setRating(book.getRating());
+        dto.setReviewCount(book.getReviewCount());
+        dto.setCoverImageUrl(book.getCoverImageUrl());
+        dto.setCategoryId(book.getCategory().getId());
+        dto.setCategoryName(book.getCategory().getName());
+        dto.setPublisherId(book.getPublisher().getId());
+        dto.setPublisherName(book.getPublisher().getName());
+        dto.setStockQuantity(book.getStockQuantity());
+        dto.setInStock(book.getStockQuantity() > 0);
+        dto.setTentativeDeliveryDays(book.getTentativeDeliveryDays());
+        dto.setIsFeatured(book.getIsFeatured());
+        return dto;
     }
 }

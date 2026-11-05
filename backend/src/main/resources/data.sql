@@ -1,9 +1,9 @@
 -- Seed Users (Password is 'Password123!')
--- BCrypt for 'Password123!': $2a$10$8.UnVuG9HHgffUDAlk8qfOuVGkqRzgVymGe07xd00DMxs.AQubh4a
+-- BCrypt for 'Password123!': $2a$10$eYaM.av7fpnqRNOsM.ogXuXxxarwO3Fc1EnY6rSulnA.Zqd8jPhh.
 INSERT INTO users (id, email, password_hash, full_name, phone_number, gift_points_balance, role, created_at)
-VALUES 
-(1, 'alex.dev@ibm.com', '$2a$10$8.UnVuG9HHgffUDAlk8qfOuVGkqRzgVymGe07xd00DMxs.AQubh4a', 'Alex Rivera', '+1-555-0144', 250, 'ROLE_CUSTOMER', CURRENT_TIMESTAMP),
-(2, 'sarah.connor@example.com', '$2a$10$8.UnVuG9HHgffUDAlk8qfOuVGkqRzgVymGe07xd00DMxs.AQubh4a', 'Sarah Connor', '+1-555-0188', 100, 'ROLE_CUSTOMER', CURRENT_TIMESTAMP);
+VALUES
+(1, 'alex.dev@ibm.com', '$2a$10$eYaM.av7fpnqRNOsM.ogXuXxxarwO3Fc1EnY6rSulnA.Zqd8jPhh.', 'Alex Rivera', '+1-555-0144', 250, 'ROLE_CUSTOMER', CURRENT_TIMESTAMP),
+(2, 'sarah.connor@example.com', '$2a$10$eYaM.av7fpnqRNOsM.ogXuXxxarwO3Fc1EnY6rSulnA.Zqd8jPhh.', 'Sarah Connor', '+1-555-0188', 100, 'ROLE_CUSTOMER', CURRENT_TIMESTAMP);
 
 -- Seed Addresses
 INSERT INTO addresses (id, user_id, recipient_name, street_address, city, state, postal_code, country, is_default)
@@ -68,7 +68,19 @@ VALUES
 
 -- Seed Gift Points Ledger
 INSERT INTO gift_points_ledger (id, user_id, order_id, points, type, description, created_at)
-VALUES 
+VALUES
 (1, 1, NULL, 200, 'EARNED', 'Welcome Sign-up Bonus', CURRENT_TIMESTAMP),
 (2, 1, NULL, 45, 'EARNED', 'Review and Profile Completion Reward', CURRENT_TIMESTAMP),
 (3, 1, 1, 5, 'EARNED', 'Earned from Order #BK-20261101-4401', CURRENT_TIMESTAMP);
+
+-- Reset Sequences past the seeded IDs to prevent unique constraint collisions on new inserts
+ALTER TABLE users ALTER COLUMN id RESTART WITH 100;
+ALTER TABLE addresses ALTER COLUMN id RESTART WITH 100;
+ALTER TABLE categories ALTER COLUMN id RESTART WITH 100;
+ALTER TABLE publishers ALTER COLUMN id RESTART WITH 100;
+ALTER TABLE books ALTER COLUMN id RESTART WITH 100;
+ALTER TABLE carts ALTER COLUMN id RESTART WITH 100;
+ALTER TABLE cart_items ALTER COLUMN id RESTART WITH 100;
+ALTER TABLE orders ALTER COLUMN id RESTART WITH 100;
+ALTER TABLE order_items ALTER COLUMN id RESTART WITH 100;
+ALTER TABLE gift_points_ledger ALTER COLUMN id RESTART WITH 100;

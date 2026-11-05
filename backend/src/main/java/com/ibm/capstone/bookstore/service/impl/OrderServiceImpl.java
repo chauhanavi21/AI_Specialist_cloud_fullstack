@@ -291,10 +291,12 @@ public class OrderServiceImpl implements OrderService {
                 .orElseThrow(() -> new ResourceNotFoundException("Order not found with id: " + orderId));
 
         for (OrderItem item : order.getItems()) {
-            AddToCartRequest req = new AddToCartRequest();
-            req.setBookId(item.getBook().getId());
-            req.setQuantity(item.getQuantity());
-            cartService.addToCart(userId, req);
+            if (item.getBook() != null) {
+                AddToCartRequest req = new AddToCartRequest();
+                req.setBookId(item.getBook().getId());
+                req.setQuantity(item.getQuantity());
+                cartService.addToCart(userId, req);
+            }
         }
 
         return cartService.getCartByUserId(userId);
@@ -366,7 +368,7 @@ public class OrderServiceImpl implements OrderService {
 
         dto.setItems(order.getItems().stream().map(i -> new OrderItemResponse(
                 i.getId(),
-                i.getBook().getId(),
+                i.getBook() != null ? i.getBook().getId() : null,
                 i.getBookTitle(),
                 i.getBookAuthor(),
                 i.getCoverImageUrl(),
