@@ -217,6 +217,42 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     @Transactional(readOnly = true)
+    public StoreDto.QuoteResponse quote(Long userId, StoreDto.QuoteRequest request) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found: " + userId));
+        Cart cart = cartRepository.findByUserId(userId)
+                .orElseThrow(() -> new BadRequestException("Shopping cart is empty"));
+        if (cart.getItems().isEmpty()) {
+            throw new BadRequestException("Shopping cart is empty");
+        }
+
+        BigDecimal subtotal = cart.getItems().stream()
+                .map(CartItem::getSubtotal)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        Coupon coupon = null;
+        BigDecimal couponDiscount = BigDecimal.ZERO;
+        if (request != null && request.couponCode() != null && !request.couponCode().isBlank()) {
+            coupon = couponService.requireApplicable(request.couponCode(), subtotal);
+            couponDiscount = coupon.discountFor(subtotal);
+        }
+        PricingCalculator.Breakdown price = pricing.price(subtotal, couponDiscount);
+
+        int maxPoints = Math.min(user.getGiftPointsBalance(), pricing.pointsNeededFor(price.grossTotal()));
+        int requested = request != null && request.pointsToRedeem() != null ? Math.max(0, request.pointsToRedeem()) : 0;
+        int pointsApplied = Math.min(requested, maxPoints);
+        BigDecimal pointsDiscount = pricing.pointsValue(pointsApplied).min(price.grossTotal());
+        BigDecimal payable = price.grossTotal().subtract(pointsDiscount).max(BigDecimal.ZERO);
+
+        return new StoreDto.QuoteResponse(
+                subtotal, couponDiscount, coupon != null ? coupon.getCode() : null,
+                price.tax(), price.shippingFee(), pointsDiscount, pointsApplied, maxPoints,
+                payable, pricing.pointsEarned(payable), user.getWalletBalance(),
+                user.getWalletBalance().compareTo(payable) >= 0);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public List<OrderSummaryResponse> getOrderHistory(Long userId) {
         return orderRepository.findByUserIdOrderByCreatedAtDesc(userId).stream()
                 .map(this::mapToOrderSummary)

@@ -177,6 +177,26 @@ class BookstoreApiIntegrationTest {
     }
 
     @Test
+    @Order(8)
+    @DisplayName("The quote matches what checkout later charges")
+    void quote() throws Exception {
+        Map<String, Object> request = new java.util.HashMap<>();
+        request.put("couponCode", "WELCOME10");
+        request.put("pointsToRedeem", 100);
+        JsonNode q = call(HttpMethod.POST, "/orders/quote", request, true, HttpStatus.OK);
+        assertEquals(1898.0, q.get("subtotal").asDouble());
+        assertEquals(189.8, q.get("couponDiscount").asDouble());
+        assertEquals(204.98, q.get("tax").asDouble());
+        assertEquals(100, q.get("pointsApplied").asInt());
+        assertEquals(1813.18, q.get("payable").asDouble());
+        assertEquals(18, q.get("pointsToEarn").asInt());
+
+        // asking for far more points than allowed is capped, not rejected
+        request.put("pointsToRedeem", 999999);
+        assertEquals(250, call(HttpMethod.POST, "/orders/quote", request, true, HttpStatus.OK).get("pointsApplied").asInt());
+    }
+
+    @Test
     @Order(9)
     @DisplayName("Addresses require the full set of wireframe fields")
     void addresses() throws Exception {

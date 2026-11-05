@@ -33,6 +33,14 @@ public class OrderController {
         return ResponseEntity.status(HttpStatus.CREATED).body(confirmation);
     }
 
+    @PostMapping("/quote")
+    @Operation(summary = "Price the current basket with an optional coupon and gift points, without placing an order")
+    public ResponseEntity<StoreDto.QuoteResponse> quote(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @RequestBody StoreDto.QuoteRequest request) {
+        return ResponseEntity.ok(orderService.quote(principal.getId(), request));
+    }
+
     @GetMapping
     @Operation(summary = "Get order history for customer")
     public ResponseEntity<List<OrderSummaryResponse>> getOrderHistory(@AuthenticationPrincipal UserPrincipal principal) {

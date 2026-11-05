@@ -6,6 +6,7 @@ import java.util.List;
 
 public interface OrderService {
     OrderConfirmationResponse placeOrder(Long userId, PlaceOrderRequest request);
+    StoreDto.QuoteResponse quote(Long userId, StoreDto.QuoteRequest request);
     List<OrderSummaryResponse> getOrderHistory(Long userId);
     OrderDetailResponse getOrderById(Long userId, Long orderId);
     OrderConfirmationResponse cancelOrder(Long userId, Long orderId, CancelOrderRequest request);
