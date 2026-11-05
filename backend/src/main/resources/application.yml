@@ -39,9 +39,12 @@ app:
     expiration-ms: 86400000 # 24 hours
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173,http://127.0.0.1:3000}
-  loyalty:
-    points-per-dollar-spent: 0.1 # 1 point per $10 spent
-    dollars-per-point-redeemed: 0.10 # 10 points = $1.00 USD
+  pricing: # all amounts are in Indian rupees (INR)
+    tax-rate: 0.12                  # 12% GST on the discounted subtotal
+    free-shipping-threshold: 499    # free delivery from Rs 499
+    shipping-fee: 49                # otherwise a flat Rs 49
+    rupees-per-point: 1             # 1 gift point = Rs 1 off
+    earn-rupees-per-point: 100      # 1 gift point earned per Rs 100 paid
   orders:
     cancellation-window-hours: 48
 
