@@ -1,8 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { X, MapPin, CreditCard, Gift, ShieldCheck, CheckCircle2, Plus, Sparkles, Lock } from 'lucide-react';
+import { X } from 'lucide-react';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
+
+const inputClass =
+  'w-full min-w-0 px-3 py-2 text-base sm:text-sm bg-white border border-brand-200 rounded-md focus:outline-none focus:border-brand-500';
 
 export default function CheckoutModal({ isOpen, onClose, onOrderSuccess }) {
   const { user, refreshUser } = useAuth();
@@ -22,7 +25,7 @@ export default function CheckoutModal({ isOpen, onClose, onOrderSuccess }) {
   });
 
   const [paymentMethod, setPaymentMethod] = useState('CREDIT_CARD');
-  const [cardDetails, setCardDetails] = useState({
+  const [cardDetails] = useState({
     cardNumber: '4242 •••• •••• 4242',
     expiry: '12/28',
     cvv: '123',
@@ -112,109 +115,104 @@ export default function CheckoutModal({ isOpen, onClose, onOrderSuccess }) {
     }
   };
 
+  const updateAddress = (field) => (e) =>
+    setNewAddress({ ...newAddress, [field]: e.target.value });
+
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto animate-fadeIn">
-      <div className="relative bg-white rounded-3xl max-w-2xl w-full shadow-2xl overflow-hidden my-8 max-h-[92vh] flex flex-col">
-        {/* Header */}
-        <div className="p-6 border-b border-gray-200 flex items-center justify-between bg-gray-50">
-          <div>
-            <h2 className="text-xl font-extrabold text-gray-900">Secure Checkout & Payment</h2>
-            <p className="text-xs text-gray-500">Step 3 of 3 · AI Specialist Bookstore</p>
-          </div>
+    <div className="fixed inset-0 z-50 bg-slate-900/40 flex items-end sm:items-center justify-center p-0 sm:p-4 overflow-y-auto">
+      <div className="relative bg-white rounded-t-xl sm:rounded-lg max-w-xl w-full overflow-hidden sm:my-8 max-h-[95dvh] sm:max-h-[92dvh] flex flex-col">
+        <div className="px-4 sm:px-6 py-4 border-b border-brand-100 flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-slate-900">Checkout</h2>
           <button
             onClick={onClose}
-            className="p-2 text-gray-400 hover:text-gray-700 rounded-full hover:bg-gray-200 transition"
+            className="p-2 text-slate-400 hover:text-slate-700 rounded-md hover:bg-brand-50"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {errorMsg && (
-          <div className="mx-6 mt-4 p-3 bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl font-medium">
+          <div className="mx-4 sm:mx-6 mt-4 p-3 bg-red-50 border border-red-200 text-red-700 text-sm rounded-md">
             {errorMsg}
           </div>
         )}
 
-        {/* Content Body */}
-        <div className="overflow-y-auto p-6 space-y-6">
-          {/* Section 1: Delivery Address (Slide 3 Node 9, Slide 8) */}
-          <div className="space-y-3">
+        <div className="overflow-y-auto p-4 sm:p-6 space-y-6 sm:space-y-7">
+          {/* Delivery address */}
+          <section className="space-y-3">
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
-                <MapPin className="w-4 h-4 text-ibm-blue" />
-                <span>1. Select Delivery Address</span>
-              </h3>
+              <h3 className="text-sm font-semibold text-slate-900">Delivery address</h3>
               {!showNewAddressForm && (
                 <button
                   onClick={() => setShowNewAddressForm(true)}
-                  className="text-xs font-semibold text-ibm-blue hover:text-ibm-darkBlue flex items-center gap-1"
+                  className="text-sm text-brand-700 hover:underline"
                 >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Add New</span>
+                  Add new
                 </button>
               )}
             </div>
 
             {showNewAddressForm ? (
-              <form onSubmit={handleCreateAddress} className="bg-gray-50 p-4 rounded-2xl border border-gray-200 space-y-3 text-xs">
-                <div className="font-bold text-gray-800">Add New Shipping Address</div>
-                <div className="grid grid-cols-2 gap-2">
+              <form onSubmit={handleCreateAddress} className="border border-brand-100 rounded-lg p-4 space-y-3">
+                <div className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-2">
                   <input
                     type="text"
                     required
-                    placeholder="Recipient Full Name"
+                    placeholder="Recipient name"
                     value={newAddress.recipientName}
-                    onChange={(e) => setNewAddress({ ...newAddress, recipientName: e.target.value })}
-                    className="p-2.5 bg-white border border-gray-300 rounded-lg focus:outline-none focus:border-ibm-blue"
+                    onChange={updateAddress('recipientName')}
+                    className={inputClass}
                   />
                   <input
                     type="text"
                     required
-                    placeholder="Street Address"
+                    placeholder="Street address"
                     value={newAddress.streetAddress}
-                    onChange={(e) => setNewAddress({ ...newAddress, streetAddress: e.target.value })}
-                    className="p-2.5 bg-white border border-gray-300 rounded-lg focus:outline-none focus:border-ibm-blue"
+                    onChange={updateAddress('streetAddress')}
+                    className={inputClass}
                   />
                 </div>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-1 min-[420px]:grid-cols-3 gap-2">
                   <input
                     type="text"
                     required
                     placeholder="City"
                     value={newAddress.city}
-                    onChange={(e) => setNewAddress({ ...newAddress, city: e.target.value })}
-                    className="p-2.5 bg-white border border-gray-300 rounded-lg focus:outline-none focus:border-ibm-blue"
+                    onChange={updateAddress('city')}
+                    className={inputClass}
                   />
                   <input
                     type="text"
                     required
                     placeholder="State"
                     value={newAddress.state}
-                    onChange={(e) => setNewAddress({ ...newAddress, state: e.target.value })}
-                    className="p-2.5 bg-white border border-gray-300 rounded-lg focus:outline-none focus:border-ibm-blue"
+                    onChange={updateAddress('state')}
+                    className={inputClass}
                   />
                   <input
                     type="text"
                     required
-                    placeholder="Postal Code"
+                    placeholder="Postal code"
                     value={newAddress.postalCode}
-                    onChange={(e) => setNewAddress({ ...newAddress, postalCode: e.target.value })}
-                    className="p-2.5 bg-white border border-gray-300 rounded-lg focus:outline-none focus:border-ibm-blue"
+                    onChange={updateAddress('postalCode')}
+                    className={inputClass}
                   />
                 </div>
-                <div className="flex items-center justify-end gap-2 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setShowNewAddressForm(false)}
-                    className="px-3 py-1.5 text-gray-600 hover:bg-gray-200 rounded-lg"
-                  >
-                    Cancel
-                  </button>
+                <div className="flex items-center justify-end gap-2">
+                  {addresses.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setShowNewAddressForm(false)}
+                      className="px-3 py-1.5 text-sm text-slate-600 hover:bg-brand-50 rounded-md"
+                    >
+                      Cancel
+                    </button>
+                  )}
                   <button
                     type="submit"
-                    className="px-4 py-1.5 bg-ibm-blue hover:bg-ibm-darkBlue text-white font-bold rounded-lg shadow-xs"
+                    className="px-4 py-1.5 bg-brand-600 hover:bg-brand-700 text-white text-sm font-medium rounded-md"
                   >
-                    Save Address
+                    Save address
                   </button>
                 </div>
               </form>
@@ -226,61 +224,42 @@ export default function CheckoutModal({ isOpen, onClose, onOrderSuccess }) {
                     <div
                       key={addr.id}
                       onClick={() => setSelectedAddressId(addr.id)}
-                      className={`p-3.5 rounded-2xl border transition cursor-pointer flex flex-col justify-between ${
+                      className={`p-3 rounded-lg border cursor-pointer text-sm ${
                         isSelected
-                          ? 'border-ibm-blue bg-blue-50/50 ring-2 ring-ibm-blue/20'
-                          : 'border-gray-200 hover:border-gray-300 bg-white'
+                          ? 'border-brand-500 bg-brand-50'
+                          : 'border-brand-100 hover:border-brand-300 bg-white'
                       }`}
                     >
-                      <div>
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="text-xs font-bold text-gray-900">{addr.recipientName}</span>
-                          {addr.isDefault && (
-                            <span className="text-[10px] bg-blue-100 text-ibm-blue px-1.5 py-0.5 rounded font-semibold">
-                              Default
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-xs text-gray-600">{addr.streetAddress}</p>
-                        <p className="text-xs text-gray-500">{addr.city}, {addr.state} {addr.postalCode}</p>
-                      </div>
-                      <div className="mt-2 text-right">
-                        {isSelected && (
-                          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-ibm-blue">
-                            <CheckCircle2 className="w-3.5 h-3.5" /> Selected
-                          </span>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-medium text-slate-900">{addr.recipientName}</span>
+                        {addr.isDefault && (
+                          <span className="text-xs text-slate-500">Default</span>
                         )}
                       </div>
+                      <p className="text-slate-600">{addr.streetAddress}</p>
+                      <p className="text-slate-500">{addr.city}, {addr.state} {addr.postalCode}</p>
                     </div>
                   );
                 })}
               </div>
             )}
-          </div>
+          </section>
 
-          {/* Section 2: Redeem Gift Loyalty Points (Slide 3 Node 10, Slide 8) */}
-          <div className="p-4 bg-amber-50/70 border border-amber-200 rounded-2xl space-y-3">
+          {/* Gift points */}
+          <section className="space-y-2">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Gift className="w-4 h-4 text-amber-600" />
-                <h3 className="text-xs font-bold text-amber-950 uppercase tracking-wide">
-                  2. Redeem Loyalty Gift Points
-                </h3>
-              </div>
-              <span className="text-xs font-bold text-amber-900 bg-amber-100 px-2.5 py-0.5 rounded-full">
-                Balance: {user?.giftPointsBalance || 0} pts
-              </span>
+              <h3 className="text-sm font-semibold text-slate-900">Gift points</h3>
+              <span className="text-sm text-slate-500">Balance: {user?.giftPointsBalance || 0}</span>
             </div>
 
-            <p className="text-xs text-amber-800 leading-relaxed">
-              Every 10 gift points gives you <span className="font-bold">$1.00 USD</span> instant discount.
-            </p>
-
             {maxPossiblePoints > 0 ? (
-              <div className="space-y-2 pt-1">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-gray-600">Points to redeem: <strong className="text-gray-900">{pointsToRedeem}</strong></span>
-                  <span className="font-bold text-emerald-700">-${pointsDiscount.toFixed(2)} USD</span>
+              <div className="border border-brand-100 rounded-lg p-4 space-y-2">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-slate-600">
+                    Redeem <strong className="text-slate-900">{pointsToRedeem}</strong> points
+                    <span className="text-slate-400"> (10 points = $1.00)</span>
+                  </span>
+                  <span className="text-slate-900">-${pointsDiscount.toFixed(2)}</span>
                 </div>
                 <input
                   type="range"
@@ -289,109 +268,103 @@ export default function CheckoutModal({ isOpen, onClose, onOrderSuccess }) {
                   step="10"
                   value={pointsToRedeem}
                   onChange={(e) => setPointsToRedeem(Number(e.target.value))}
-                  className="w-full accent-amber-600 cursor-pointer"
+                  className="w-full accent-brand-600 cursor-pointer"
                 />
-                <div className="flex justify-between text-[10px] text-gray-400">
-                  <span>0 pts ($0)</span>
+                <div className="flex justify-between text-xs text-slate-400">
+                  <span>0</span>
                   <button
                     type="button"
                     onClick={() => setPointsToRedeem(maxPossiblePoints)}
-                    className="text-amber-800 font-bold hover:underline"
+                    className="text-brand-700 hover:underline"
                   >
-                    Use Max ({maxPossiblePoints} pts)
+                    Use max ({maxPossiblePoints})
                   </button>
                 </div>
               </div>
             ) : (
-              <p className="text-xs text-gray-500 italic">No points available or cart is already free.</p>
+              <p className="text-sm text-slate-500">No points available to redeem.</p>
             )}
-          </div>
+          </section>
 
-          {/* Section 3: Payment Options (Slide 3 Node 10, Slide 9) */}
-          <div className="space-y-3">
-            <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
-              <CreditCard className="w-4 h-4 text-ibm-blue" />
-              <span>3. Payment Method</span>
-            </h3>
+          {/* Payment */}
+          <section className="space-y-3">
+            <h3 className="text-sm font-semibold text-slate-900">Payment method</h3>
 
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {[
-                { id: 'CREDIT_CARD', label: 'Credit Card', icon: '💳' },
-                { id: 'DEBIT_CARD', label: 'Debit Card', icon: '💳' },
-                { id: 'UPI', label: 'UPI / Instant', icon: '⚡' },
-                { id: 'NET_BANKING', label: 'Net Banking', icon: '🏦' },
+                { id: 'CREDIT_CARD', label: 'Credit card' },
+                { id: 'DEBIT_CARD', label: 'Debit card' },
+                { id: 'UPI', label: 'UPI' },
+                { id: 'NET_BANKING', label: 'Net banking' },
               ].map((opt) => (
                 <button
                   key={opt.id}
                   type="button"
                   onClick={() => setPaymentMethod(opt.id)}
-                  className={`p-3 rounded-xl border text-xs font-semibold flex flex-col items-center gap-1 transition ${
+                  className={`py-2.5 rounded-md border text-sm ${
                     paymentMethod === opt.id
-                      ? 'border-ibm-blue bg-blue-50 text-ibm-blue font-bold shadow-xs'
-                      : 'border-gray-200 text-gray-700 hover:bg-gray-50'
+                      ? 'border-brand-500 bg-brand-50 text-brand-800 font-medium'
+                      : 'border-brand-100 text-slate-700 hover:bg-brand-50'
                   }`}
                 >
-                  <span className="text-base">{opt.icon}</span>
-                  <span>{opt.label}</span>
+                  {opt.label}
                 </button>
               ))}
             </div>
 
-            {/* Simulated Card Form */}
             {(paymentMethod === 'CREDIT_CARD' || paymentMethod === 'DEBIT_CARD') && (
-              <div className="p-4 bg-gray-50 border border-gray-200 rounded-2xl space-y-2 text-xs">
+              <div className="border border-brand-100 rounded-lg p-4 space-y-2 text-sm">
                 <div>
-                  <label className="block text-[11px] font-semibold text-gray-600 mb-1">Card Number (Demo Sandbox)</label>
+                  <label className="block text-xs text-slate-500 mb-1">Card number (test card)</label>
                   <input
                     type="text"
                     disabled
                     value={cardDetails.cardNumber}
-                    className="w-full p-2.5 bg-white border border-gray-300 rounded-lg text-gray-800 font-mono"
+                    className="w-full px-3 py-2 bg-brand-50 border border-brand-100 rounded-md text-slate-700 font-mono"
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="block text-[11px] font-semibold text-gray-600 mb-1">Expiry Date</label>
+                    <label className="block text-xs text-slate-500 mb-1">Expiry</label>
                     <input
                       type="text"
                       disabled
                       value={cardDetails.expiry}
-                      className="w-full p-2.5 bg-white border border-gray-300 rounded-lg text-gray-800 font-mono"
+                      className="w-full px-3 py-2 bg-brand-50 border border-brand-100 rounded-md text-slate-700 font-mono"
                     />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-semibold text-gray-600 mb-1">CVV</label>
+                    <label className="block text-xs text-slate-500 mb-1">CVV</label>
                     <input
                       type="text"
                       disabled
                       value={cardDetails.cvv}
-                      className="w-full p-2.5 bg-white border border-gray-300 rounded-lg text-gray-800 font-mono"
+                      className="w-full px-3 py-2 bg-brand-50 border border-brand-100 rounded-md text-slate-700 font-mono"
                     />
                   </div>
                 </div>
               </div>
             )}
-          </div>
+          </section>
         </div>
 
-        {/* Footer Summary & Authorization Button */}
-        <div className="p-6 border-t border-gray-200 bg-gray-50 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="text-left w-full sm:w-auto">
-            <div className="text-xs text-gray-500">
-              Subtotal: ${cart.subtotal.toFixed(2)} {pointsDiscount > 0 && `· Discount: -$${pointsDiscount.toFixed(2)}`}
+        <div className="px-4 sm:px-6 py-4 border-t border-brand-100 bg-brand-50 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="w-full sm:w-auto">
+            <div className="text-xs text-slate-500">
+              Subtotal ${cart.subtotal.toFixed(2)}
+              {pointsDiscount > 0 && ` · Points -$${pointsDiscount.toFixed(2)}`}
             </div>
-            <div className="text-xl font-black text-gray-900">
-              Total: <span className="text-ibm-blue">${finalTotal.toFixed(2)}</span>
+            <div className="text-lg font-semibold text-slate-900">
+              Total ${finalTotal.toFixed(2)}
             </div>
           </div>
 
           <button
             onClick={handlePlaceOrder}
             disabled={isSubmitting || !selectedAddressId}
-            className="w-full sm:w-auto px-8 py-3.5 bg-ibm-blue hover:bg-ibm-darkBlue disabled:bg-gray-400 text-white font-bold rounded-xl flex items-center justify-center gap-2 shadow-xl transition active:scale-98"
+            className="w-full sm:w-auto px-8 py-2.5 bg-brand-600 hover:bg-brand-700 disabled:bg-slate-300 text-white text-sm font-medium rounded-md"
           >
-            <Lock className="w-4 h-4" />
-            <span>{isSubmitting ? 'Authorizing Payment...' : `Authorize & Pay $${finalTotal.toFixed(2)}`}</span>
+            {isSubmitting ? 'Processing...' : `Pay $${finalTotal.toFixed(2)}`}
           </button>
         </div>
       </div>
