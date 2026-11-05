@@ -7,16 +7,30 @@ export default {
   theme: {
     extend: {
       colors: {
-        ibm: {
-          blue: '#0f62fe',
-          darkBlue: '#0043ce',
-          lightBlue: '#edf5ff',
-          gray: '#f4f4f4',
-          text: '#161616',
-          border: '#e0e0e0',
-          accent: '#10b981'
-        }
-      }
+        // Light blue + white theme
+        brand: {
+          50: '#f3f8fd',
+          100: '#e6f1fa',
+          200: '#cde3f5',
+          300: '#a3cdee',
+          400: '#6aaee0',
+          500: '#3a8fd1',
+          600: '#1f74b8',
+          700: '#195d95',
+          800: '#154b78',
+          900: '#123d61',
+        },
+      },
+      fontFamily: {
+        sans: [
+          'Inter',
+          '-apple-system',
+          'BlinkMacSystemFont',
+          '"Segoe UI"',
+          'Roboto',
+          'sans-serif',
+        ],
+      },
     },
   },
   plugins: [],
