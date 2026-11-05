@@ -1,174 +1,157 @@
 # AI Specialist Capstone — Cloud FullStack Bookstore Submission Report
 
-**Author / Candidate**: Cloud FullStack AI Engineering Team  
-**Agentic IDE Employed**: IBM Bob  
-**Target Platform**: Cloud Hybrid (PostgreSQL, Spring Boot 3.3, React 18, OpenShift / ROKS)  
-**Date**: November 2026  
+**Author / Candidate**: Avi Chauhan
+**Agentic IDE Employed**: IBM Bob
+**Target Platform**: Spring Boot 3.3 (Java 21), React 18, PostgreSQL, deployable to Red Hat OpenShift (ROKS / ROSA)
+**Date**: November 2026
 
 ---
 
 ## 1. Executive Summary
 
-This submission satisfies all requirements of the **AI Specialist — Cloud FullStack Capstone Project**. Using **IBM Bob** as the Agentic IDE, we designed, specified, developed, tested, and containerized an enterprise-grade eCommerce platform for an online technical bookstore ("Bob Bookstore").
+This submission implements the **AI Specialist — Cloud FullStack Capstone**: an online bookstore ("Book Worm") where a customer can log in, browse a catalogue by genre and brand, read about a book and its writer, fill a basket, redeem gift points and coupons, pay, and cancel within 48 hours.
 
-The implementation demonstrates modern AI-augmented software engineering practices, moving beyond conversational code generation into structured agentic workflows:
-- Automated wireframe & journey requirement analysis.
-- Contract-first API engineering with **OpenAPI 3.0**.
-- Clean-architecture **Spring Boot 3 (Java 21)** backend with PostgreSQL & JPA.
-- Dynamic **React 18 + Vite + Tailwind CSS** frontend.
-- Specialized business logic: **48-Hour Free Order Cancellation Guarantee**, **Loyalty Gift Points Ledger**, **Order-History Recommendations**, and **1-Click "Buy It Again" Reordering**.
-- Automated testing suite and cloud-native container manifests for Red Hat OpenShift (ROKS / ROSA).
+What is delivered:
+
+- Contract-first **OpenAPI 3.0** spec (30 paths, 37 operations) that matches the code route for route.
+- **Spring Boot 3 / Java 21** backend with JWT security, JPA, PostgreSQL support and an H2 profile for quick starts.
+- **React 18 + Vite + Tailwind** frontend built to the wireframes on slides 5 to 10: dark theme, genre sidebar, five-control filter bar, Recommended / Bestsellers / New Launches shelves, product page with writer and reviews, checkout, payment and confirmation screens.
+- Business rules: **48-hour cancellation**, **gift points**, **coupons**, **wallet**, **order-history recommendations** and **Buy It Again**.
+- **40 automated tests** plus a scripted browser walk-through of the full customer journey.
+- Dockerfiles, `docker-compose.yml` and OpenShift manifests.
+
+All prices are in **Indian rupees (₹)**, matching the wireframes.
 
 ---
 
-## 2. Agentic IDE Workflow & Utilization (IBM Bob)
-
-The development lifecycle was orchestrated through iterative agentic prompts and automated synthesis with IBM Bob:
+## 2. Workflow
 
 ```mermaid
 flowchart LR
-    A[Step 1: Wireframe & Journey Analysis] --> B[Step 2: OpenAPI 3.0 Contract Generation]
-    B --> C[Step 3: Spring Boot Backend Synthesis]
-    C --> D[Step 4: React UI Implementation]
-    D --> E[Step 5: Automated Test Suite Generation]
-    E --> F[Step 6: Docker & ROKS Manifests]
+    A[Wireframe & journey analysis] --> B[Data model]
+    B --> C[OpenAPI 3.0 contract]
+    C --> D[Spring Boot backend]
+    D --> E[React UI]
+    E --> F[Tests]
+    F --> G[Docker & OpenShift manifests]
+    G --> H[Review against the slides and fixes]
 ```
 
-### Stage 1: Requirement Analysis & Data Model Extraction
-- **Agentic Task**: Analyzed Slides 3 to 10 of the capstone instructions. Extracted the 12 customer journey steps, relational entities (`User`, `Address`, `Category`, `Publisher`, `Book`, `Cart`, `Order`, `GiftPointsLedger`), and business constraints.
-- **Outcome**: Produced [`docs/data-model.md`](docs/data-model.md:1) and the relational database schema [`backend/src/main/resources/schema.sql`](backend/src/main/resources/schema.sql:1).
+The prompts and outputs of the IBM Bob sessions are logged in [`docs/agentic-ide-workflow.md`](docs/agentic-ide-workflow.md). Section 4 of that journal lists the gaps found when the first build was compared with the wireframes, and how each was closed.
 
-### Stage 2: Contract-First API Engineering
-- **Agentic Task**: Generated a standard-compliant OpenAPI 3.0 YAML specification covering all 14 REST endpoints, request/response models, JWT security schemes, and error handling.
-- **Outcome**: Delivered [`docs/openapi.yaml`](docs/openapi.yaml:1) and interactive Swagger UI at `/swagger-ui.html`.
-
-### Stage 3: Backend Synthesis & Clean Architecture
-- **Agentic Task**: Generated Spring Boot 3.3.5 microservice code with JPA repositories, stateless JWT security filter, exception hierarchy, and business services.
-- **Outcome**: Zero boilerplate errors, pure Spring Data JPA parametric querying, and transaction-safe stock/point management in [`backend/src/main/java/`](backend/src/main/java/).
-
-### Stage 4: Frontend Development
-- **Agentic Task**: Synthesized a responsive, high-performance React application using Vite and Tailwind CSS.
-- **Outcome**: 100% working interactive UI featuring live search, brand filters, modal detail views, points redemption slider, and 48-hour order cancellation workflows in [`frontend/src/`](frontend/src/).
-
-### Stage 5: AI-Augmented Test Generation
-- **Agentic Task**: Synthesized JUnit 5 unit tests with Mockito and Postman automated contract test collection.
-- **Outcome**: Unit tests for 48h cancellation edge cases, stock reservation, and points ledger math in [`backend/src/test/java/`](backend/src/test/java/) and [`docs/bookstore-api-collection.json`](docs/bookstore-api-collection.json:1).
+| Stage | Output |
+|---|---|
+| Requirements | [`docs/data-model.md`](docs/data-model.md), [`backend/src/main/resources/schema.sql`](backend/src/main/resources/schema.sql) |
+| API contract | [`docs/openapi.yaml`](docs/openapi.yaml), Swagger UI at `/api/v1/swagger-ui.html` |
+| Backend | [`backend/src/main/java/`](backend/src/main/java/) |
+| Frontend | [`frontend/src/`](frontend/src/) |
+| Tests | [`backend/src/test/java/`](backend/src/test/java/), [`docs/bookstore-api-collection.json`](docs/bookstore-api-collection.json) |
+| Deployment | [`docker-compose.yml`](docker-compose.yml), [`deploy/k8s/`](deploy/k8s/bookstore-roks-deployment.yaml) |
 
 ---
 
-## 3. 12 Customer Journey Implementation Matrix
+## 3. The 12 customer journeys (slide 3)
 
-| Step # | Journey Step (Capstone Spec) | Implementation Component & Endpoint | Verification |
-|---|---|---|---|
-| **1** | **E-store Home & Login** | `AuthController.java` (`POST /api/v1/auth/login`), `AuthModal.jsx` | Tested with demo user `alex.dev@ibm.com` |
-| **2** | **User Authentication & Profile** | `JwtAuthenticationFilter.java`, `UserPrincipal.java`, `GET /api/v1/auth/me` | JWT token validated on all secured routes |
-| **3** | **Access Product Catalog** | `BookController.java` (`GET /api/v1/books`), `BookCard.jsx` | Paginated search across 15+ titles |
-| **4** | **Browse Order History & Buy It Again** | `OrderController.java` (`GET /api/v1/orders`, `POST /orders/{id}/reorder`), `OrderHistoryModal.jsx` | 1-click reorder re-populates active cart |
-| **5** | **Select Category of Products** | `GET /api/v1/categories`, `CategoryPills.jsx` | 5 categories with real-time count badges |
-| **6** | **Browse Brands / Publishers** | `GET /api/v1/publishers`, `PublisherFilter.jsx` | Filter by IBM Press, O'Reilly, Manning, etc. |
-| **7** | **Product with Tentative Delivery & Related Books** | `GET /api/v1/books/{id}`, `GET /books/{id}/related`, `BookDetailModal.jsx` | Calculated delivery date + related shelf |
-| **8** | **Add Products to Basket & Updates** | `CartController.java` (`/api/v1/cart/**`), `CartDrawer.jsx` | Stepper quantity, stock check, free shipping |
-| **9** | **Select Delivery Address** | `UserController.java` (`/api/v1/users/addresses`), `CheckoutModal.jsx` | Default address selection + add new address |
-| **10**| **Payment Options & Redeem Gift Points** | `CheckoutModal.jsx`, `OrderServiceImpl.java` | Card/UPI selection + 10 pts = $1 discount slider |
-| **11**| **Payment Confirmation** | `POST /api/v1/orders`, `OrderConfirmationModal.jsx` | Confirmed order status, order #, and invoice |
-| **12**| **Purchase Confirm & 48h Order Cancel** | `POST /api/v1/orders/{id}/cancel`, `OrderHistoryModal.jsx` | Automatic 48h window check, full refund & points restoration |
+| # | Journey step | Where it lives |
+|---|---|---|
+| 1 | Login page | `AuthModal.jsx`, `POST /auth/login`; sign-up and demo account |
+| 2 | User authentication | JWT filter, `GET /auth/me` |
+| 3 | Access catalogue for each category | `CatalogPage.jsx`, `GET /books`; genre sidebar |
+| 4 | Order history with Buy It Again; recommendations | `OrdersPage.jsx`, `POST /orders/{id}/reorder`, "Recommended for You" shelf |
+| 5 | Select the category of products | Genre sidebar, `GET /categories` |
+| 6 | Browse the brands | Publisher filter, `GET /publishers` |
+| 7 | Select the product, with tentative delivery date; related products | `BookDetailModal.jsx` ("Delivery by Sat, 7 Nov", "Related Reads") |
+| 8 | Add the product(s) to basket | `CartDrawer.jsx`, `/cart` |
+| 9 | Select the address for delivery | `CheckoutModal.jsx` + `AddressForm.jsx`, `/users/addresses` |
+| 10 | Initiate payment with the right option; redeem gift points | `PaymentPanel.jsx` (Credit / Debit / UPI / Wallet), points slider |
+| 11 | Payment confirmation | `OrderConfirmationModal.jsx` |
+| 12 | Confirmation on purchase; cancel within 48 hrs | Confirmation modal, `POST /orders/{id}/cancel`, `OrdersPage.jsx` |
 
----
-
-## 4. Key Business Logic Implementations
-
-### A. 48-Hour Order Cancellation Rule
-```java
-// backend/src/main/java/com/ibm/capstone/bookstore/service/impl/OrderServiceImpl.java
-Duration duration = Duration.between(order.getCreatedAt(), LocalDateTime.now());
-if (duration.toHours() >= cancellationWindowHours) {
-    throw new OrderCancellationException("Cancellation window expired. Orders can only be cancelled within 48 hours.");
-}
-// 1. Mark Order CANCELLED & Payment REFUNDED
-order.setOrderStatus(OrderStatus.CANCELLED);
-order.setPaymentStatus(PaymentStatus.REFUNDED);
-
-// 2. Restore Book Stock
-for (OrderItem item : order.getItems()) {
-    Book book = item.getBook();
-    book.setStockQuantity(book.getStockQuantity() + item.getQuantity());
-    bookRepository.save(book);
-}
-
-// 3. Restore Redeemed Points & Revoke Earned Points
-if (order.getPointsRedeemed() > 0) {
-    user.setGiftPointsBalance(user.getGiftPointsBalance() + order.getPointsRedeemed());
-}
-```
-
-### B. Loyalty Gift Points Engine
-- **Accrual**: 1 point earned per $10 USD spent (`Math.floor(totalAmount / 10)`).
-- **Redemption**: 10 points = $1.00 USD discount applied during checkout.
-- **Ledger Audit**: Every event creates a permanent entry in `gift_points_ledger` with type `EARNED`, `REDEEMED`, or `REFUNDED`.
+Wireframe extras also built: **My Wishlist**, **My Writers** (follow a writer, see their books), **About the writer**, **Reviews**, **coupon box**, **Tax and Delivery lines** in the Grand Total.
 
 ---
 
-## 5. Video Walkthrough Script (5-Minute Manager Review)
+## 4. Business rules
 
-This script is structured for recording the demonstration video required in Slide 11:
+All maths lives in one class (`PricingCalculator`) used by the basket, the quote endpoint and order placement, so the amount shown is the amount charged.
 
-### **[0:00 - 0:45] Introduction & Agentic IDE Setup**
-- *"Hello. In this capstone walkthrough, I am demonstrating our full-stack E-Bookstore platform developed using the IBM Bob Agentic IDE."*
-- *"We used IBM Bob across all phases: wireframe parsing, OpenAPI 3.0 generation, Spring Boot 3 backend synthesis with PostgreSQL, and React frontend development."*
+| Rule | Behaviour |
+|---|---|
+| Tax | 12% of the subtotal after any coupon |
+| Delivery | Free from ₹499, otherwise ₹49 |
+| Coupons | `WELCOME10` (10%, up to ₹300), `BOOKS100` (₹100 off above ₹999), `CLOUD20` (20% above ₹1,500, up to ₹500) |
+| Gift points | Redeem 1 point = ₹1 off; earn 1 point per ₹100 paid |
+| 48-hour cancel | Restores stock, returns redeemed points, revokes earned points (ledger entry), refunds wallet money |
+| Payment | Validated **before** anything changes, so a declined payment leaves stock, points and basket untouched |
 
-### **[0:45 - 1:45] Catalog Browsing, Search & Tentative Delivery Dates (Journeys 1–7)**
-- Open the application at `http://localhost:5173`.
-- Demonstrate keyword search (e.g., search for "OpenShift" or "Spring").
-- Switch category pills (Cloud & Containers, AI & ML, Microservices).
-- Click on *"Enterprise Cloud Native Architecture"*.
-- Highlight the **calculated tentative delivery date** badge and the **"Related Books in This Category"** shelf.
-
-### **[1:45 - 2:45] Basket Management & Loyalty Points Checkout (Journeys 8–10)**
-- Adjust quantity and click **"Add to Basket"**.
-- Open the shopping cart drawer; demonstrate quantity modification and free shipping threshold ($50+).
-- Click **"Proceed to Checkout"**.
-- Demonstrate delivery address selection and add-new-address form.
-- Select payment method (Credit Card / UPI).
-- Use the **Gift Points Redemption Slider** (e.g. redeem 50 points to receive a $5.00 discount).
-- Click **"Authorize & Pay"**.
-
-### **[2:45 - 3:45] Payment Confirmation & 48-Hour Order Cancellation (Journeys 11–12)**
-- Show the **Order Confirmation Modal**: Order Number, new points balance (+earned / -redeemed), and delivery date.
-- Open **Order History & Tracking**.
-- Point out the **"48-hour free cancellation window remaining"** countdown timer.
-- Click **"Cancel Order"**, select a cancellation reason, and confirm.
-- Show instant transition to `CANCELLED` status with 100% refund, inventory replenishment, and restored gift points balance.
-
-### **[3:45 - 4:30] 1-Click "Buy It Again" Reordering**
-- Navigate to past orders and click the **"Buy It Again (1-Click Reorder)"** button.
-- Show that all line items from the previous order are instantly re-added to the active shopping cart with live inventory verification.
-
-### **[4:30 - 5:00] Architecture & Cloud Deployability Wrap-up**
-- Show the OpenAPI 3.0 specification in `/docs/openapi.yaml` and Swagger UI.
-- Show the Docker Compose and OpenShift ROKS deployment manifests in `/deploy/k8s/`.
-- Conclude the review.
+### Payments are simulated
+There is no real payment processor. A `PaymentGateway` class validates the instrument as a real gateway front end would (Luhn check, future expiry, CVV, UPI ID format, wallet balance) and returns a reference. **Card numbers, expiry and CVV are never stored**; only the last four digits are kept. Test card `4242 4242 4242 4242` succeeds and `4000 0000 0000 0002` is declined.
 
 ---
 
-## 6. How to Run Locally
+## 5. Testing — what was run and what was not
 
-### Backend (Spring Boot + Java 21)
+| Check | Result |
+|---|---|
+| Backend: `./mvnw test` | **40 tests pass** (4 book, 13 API integration, 10 order, 7 payment, 6 pricing/coupon) |
+| API integration | Boots the whole app on H2 with the real `schema.sql` and `data.sql` and drives it over HTTP: filters, shelves, auth, wishlist, writers, reviews, coupons, quote, address validation, declined card, checkout, cancel, wallet |
+| Postman collection | All 36 requests replayed against a freshly seeded server and returned the documented status |
+| OpenAPI | Parses; every `$ref` resolves; every route the controllers serve is documented, none documented that is not served |
+| Frontend build | `npm run build` succeeds |
+| Browser walk-through | A scripted Chrome session passed 17 of 17 steps: landing, filters, sign-in, product page, review, wishlist, writers, basket, checkout validation, bad and good coupon, declined card, successful order, cancel, wallet top-up, phone layout. It also caught and led to fixes for a cramped phone navigation bar, stacking notifications and broken cover titles |
+
+**Not verified here — please read:**
+
+- **PostgreSQL and Docker were not run.** This machine has no Docker and no Postgres server. The PostgreSQL scripts (`backend/src/main/resources/db/postgres/`) were generated from the H2 ones and executed twice on H2 in PostgreSQL mode to prove they are idempotent, but real PostgreSQL has not accepted them yet. The default profile is **H2 in memory**; PostgreSQL is selected with `SPRING_PROFILES_ACTIVE=postgres` (this is what `docker-compose.yml` does). Run `docker compose up --build` once on a machine with Docker before recording the video.
+- **The OpenShift manifest was parsed but not applied** to a cluster.
+- The automated test generator named on slide 11 (ICA Agent) was **not** used. The tests in this repository were written directly. If you used the ICA Agent, add that to the journal; otherwise say so honestly in the video.
+
+---
+
+## 6. Running it
+
+**Quick start (H2, no database needed)**
+
 ```powershell
 cd backend
-./mvnw clean package
-./mvnw spring-boot:run
+./mvnw spring-boot:run          # API on http://localhost:8080/api/v1  (Swagger: /swagger-ui.html)
 ```
-*API will start on `http://localhost:8080/api/v1` with Swagger at `http://localhost:8080/api/v1/swagger-ui.html`.*
-
-### Frontend (React + Vite)
 ```powershell
 cd frontend
 npm install
-npm run dev
+npm run dev                     # http://localhost:5173
 ```
-*Web application will open on `http://localhost:5173`.*
 
-### Docker Compose (PostgreSQL + Backend + Frontend)
+Demo account: `alex.dev@ibm.com` / `Password123!` (the **Use demo account** button fills it in). It starts with 250 gift points and ₹1,500 in the wallet.
+
+**PostgreSQL via Docker**
+
 ```powershell
-docker compose up --build
+docker compose up --build       # UI http://localhost:3000, API http://localhost:8080/api/v1
 ```
+Database credentials come from `POSTGRES_USER`, `POSTGRES_PASSWORD` and `JWT_SECRET` (a local `.env` file or the environment). The defaults in the compose file are for a local demo only.
+
+**Tests**
+
+```powershell
+cd backend
+./mvnw test
+```
+
+---
+
+## 7. Video walkthrough script (about 5 minutes)
+
+Slide 11 asks for a recorded video that describes the steps. Before recording, start the stack and open the app. The demo account is `alex.dev@ibm.com` / `Password123!`.
+
+**[0:00 – 0:45] Introduction and workflow.** Show the repo tree, then `docs/agentic-ide-workflow.md`. Explain how you used IBM Bob: wireframes to data model, OpenAPI contract, backend, UI, tests. Mention the review against the slides (journal section 4).
+
+**[0:45 – 1:45] Home, login, catalogue, genre, brand (journeys 1 to 6).** Show the landing page and the three shelves. Click **Sign in**, then **Use demo account**. Search "OpenShift", then clear it. Click genres in the left rail. Use the **Format** and **Price range** filters and the **Publisher** buttons. Point out **Recommended for You**.
+
+**[1:45 – 2:30] Product page, delivery date, related reads, basket (journeys 7 and 8).** Open a book. Show the delivery date, **About the writer** (try Follow), **Reviews**, and **Related Reads**. Click **Add to Cart**, open the basket, change a quantity and note the free-delivery message.
+
+**[2:30 – 3:30] Address, payment, gift points, confirmation (journeys 9 to 11).** Click **Checkout**. Show the address cards and **Add new address**. Apply coupon `WELCOME10`, drag the **Gift points** slider and watch **Total Amount** change. Open the payment tabs. Try card `4000 0000 0000 0002` to show a decline, then `4242 4242 4242 4242` with any future date. Show the confirmation: books, payment reference, points earned.
+
+**[3:30 – 4:15] Orders, 48-hour cancel, Buy It Again (journey 12).** Open **My Orders**. Show "hours left to cancel for free", cancel the order and show the points and stock restored (top-right points). Click **Buy it again**.
+
+**[4:15 – 5:00] API, tests and deployment.** Open Swagger UI and run one call. Show `docs/openapi.yaml`, run `./mvnw test` (40 tests), then show `docker-compose.yml`, the Dockerfiles, `deploy/k8s/bookstore-roks-deployment.yaml` and the GitHub pull request.

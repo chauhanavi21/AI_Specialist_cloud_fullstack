@@ -1,97 +1,109 @@
-# E-Bookstore Platform — AI Specialist Cloud FullStack Capstone
+# Book Worm — E-Bookstore Platform (AI Specialist Cloud FullStack Capstone)
 
-> **AI-Augmented Cloud Full-Stack Solution for Bookstore eCommerce**, designed and synthesized using the **IBM Bob** Agentic IDE.
-
----
-
-## 🌟 Key Features & Deliverables
-
-- **12 Customer Journey Nodes**: Home, Authentication, Catalog, Category Filtering, Brand Browsing, Tentative Delivery Dates, Related Recommendations, Shopping Basket, Delivery Address Book, Payment Options, Loyalty Gift Points Redemption, and 48-Hour Order Cancellation.
-- **Contract-First API**: Full [OpenAPI 3.0 Specification](docs/openapi.yaml) with Swagger UI at `/swagger-ui.html`.
-- **Spring Boot 3.3 (Java 21)**: Modular domain services, stateless JWT authentication, PostgreSQL JPA persistence, and JUnit 5 unit/integration test suites.
-- **React 18 + Vite + Tailwind CSS**: Responsive, modern user interface.
-- **Loyalty & Gift Points Engine**: 10 points = $1.00 USD discount slider with audit ledger.
-- **48-Hour Order Cancellation Guarantee**: Automatic cancellation eligibility verification, 100% instant refund, stock restoration, and points rollback.
-- **Buy It Again**: 1-click re-order adding past purchase items back to active shopping cart.
-- **Cloud & Container Ready**: Multi-stage Dockerfiles, `docker-compose.yml`, and Red Hat OpenShift (ROKS / ROSA) Kubernetes manifests.
+An online bookstore: browse by genre and brand, read about a book and its writer, fill a basket, pay with a card, UPI or wallet,
+redeem gift points and coupons, and cancel any order within 48 hours. Built with an agentic IDE (IBM Bob) for the
+IBM AI Specialist capstone. Prices are in Indian rupees (₹).
 
 ---
 
-## 🏗️ Architecture
+## What is in it
+
+- **Catalogue**: genre sidebar, search, language / format / price filters, sort, publisher filter, and Recommended / Bestsellers / New Launches shelves.
+- **Product page**: delivery date, Add to Cart / Add to Wishlist, language, rating, copies sold, about the writer (with Follow), reviews, Related Reads.
+- **My Orders, My Wishlist, My Writers** pages.
+- **Checkout**: address form, coupon, gift points, server-priced Grand Total, and Credit / Debit / UPI / Wallet payment (simulated gateway).
+- **Rules**: 12% tax, free delivery from ₹499, 1 gift point = ₹1, 1 point earned per ₹100, 48-hour cancellation with refund.
+- **API**: contract-first [OpenAPI 3.0](docs/openapi.yaml) (37 operations) with Swagger UI at `/api/v1/swagger-ui.html`.
+- **Stack**: Spring Boot 3.3 (Java 21), JWT, JPA, PostgreSQL or H2; React 18, Vite, Tailwind CSS.
+- **Ops**: Dockerfiles, `docker-compose.yml`, OpenShift (ROKS / ROSA) manifests.
+
+> Payments are simulated. No real money moves, and card numbers, expiry and CVV are never stored.
+
+---
+
+## Architecture
 
 ```mermaid
 flowchart TB
     subgraph UI ["Frontend (React 18 + Vite + Tailwind)"]
-        Nav[Navbar & Search]
-        Cat[Catalog & Category Filters]
-        Cart[Shopping Basket & Steppers]
-        Check[Checkout & Points Slider]
-        History[Order History & 48h Cancel]
+        Cat[Catalogue, filters, shelves]
+        Prod[Product page, reviews, writers]
+        Check[Basket, checkout, payment]
+        Acct[My Orders, Wishlist, Writers, Wallet]
     end
 
-    subgraph API ["Backend API (Spring Boot 3.3.5 / Java 21)"]
-        Auth[Auth & JWT Filter]
-        Books[Catalog & Search Service]
-        Orders[Order & 48h Cancellation Engine]
-        Points[Loyalty Ledger Service]
-        Rec[Recommendation Service]
+    subgraph API ["Backend API (Spring Boot 3.3 / Java 21)"]
+        Auth[Auth & JWT filter]
+        Books[Catalogue, search, shelves]
+        Orders[Orders, quote & 48h cancellation]
+        Price[PricingCalculator]
+        Pay[PaymentGateway - simulated]
+        Eng[Wishlist, writers, reviews]
+        Wal[Wallet, coupons, gift points]
     end
 
-    subgraph DB ["Database"]
-        Postgres[(PostgreSQL / H2)]
-    end
+    DB[(PostgreSQL / H2)]
 
     UI -->|REST / JSON| API
-    API -->|JPA / Hibernate| DB
+    Orders --> Price
+    Orders --> Pay
+    API -->|JPA| DB
 ```
 
 ---
 
-## 🚀 Quickstart
+## Quick start (no database needed)
 
-### Option 1: Docker Compose (All Services)
+The default profile uses an in-memory **H2** database that is seeded on every start.
+
 ```powershell
-docker compose up --build
-```
-- Frontend: `http://localhost:3000`
-- Backend API: `http://localhost:8080/api/v1`
-- Swagger UI: `http://localhost:8080/api/v1/swagger-ui.html`
-
-### Option 2: Run Separately for Local Development
-
-#### 1. Backend (Terminal 1)
-```powershell
+# Terminal 1: API on http://localhost:8080/api/v1
 cd backend
-./mvnw clean package
 ./mvnw spring-boot:run
-```
 
-#### 2. Frontend (Terminal 2)
-```powershell
+# Terminal 2: UI on http://localhost:5173
 cd frontend
 npm install
 npm run dev
 ```
-Open `http://localhost:5173`.
 
----
+Demo account: **alex.dev@ibm.com / Password123!** (the sign-in dialog has a **Use demo account** button).
+It starts with 250 gift points and ₹1,500 in the wallet.
 
-## 🧪 Testing
+Test cards: `4242 4242 4242 4242` succeeds, `4000 0000 0000 0002` is declined. Use any future expiry and any 3-digit CVV.
+Coupons: `WELCOME10`, `BOOKS100`, `CLOUD20`.
 
-### Backend Unit & Integration Tests (JUnit 5 + Mockito)
+## Run with PostgreSQL (Docker)
+
 ```powershell
-cd backend
-./mvnw test
+docker compose up --build
 ```
 
-### Automated API Contract Tests (Postman Collection)
-Import `docs/bookstore-api-collection.json` into Postman or Insomnia.
+- UI: http://localhost:3000
+- API: http://localhost:8080/api/v1 · Swagger: http://localhost:8080/api/v1/swagger-ui.html
+
+Credentials come from `POSTGRES_USER`, `POSTGRES_PASSWORD` and `JWT_SECRET` in your environment or a local `.env` file;
+the defaults in `docker-compose.yml` are for a local demo only. The PostgreSQL profile uses its own idempotent scripts in
+`backend/src/main/resources/db/postgres/`. They are written to be safe to re-run (`IF NOT EXISTS`, `ON CONFLICT DO NOTHING`) and never drop tables.
+
+> The PostgreSQL scripts and the compose / OpenShift files were checked for syntax and idempotency but have not been run
+> against a live PostgreSQL server, Docker or a cluster from this repository. See the report for details.
+
+## Tests
+
+```powershell
+cd backend
+./mvnw test        # 40 tests, including a full-stack API test on the real schema and seed data
+```
+
+Import [`docs/bookstore-api-collection.json`](docs/bookstore-api-collection.json) into Postman or Insomnia for the 36 API requests.
 
 ---
 
-## 📄 Documentation Links
-- [Submission Report & Video Script](SUBMISSION_REPORT.md)
-- [OpenAPI 3.0 Specification](docs/openapi.yaml)
-- [Data Model & ER Architecture](docs/data-model.md)
-- [Agentic IDE Workflow Journal](docs/agentic-ide-workflow.md)
-- [Kubernetes / ROKS Deployment](deploy/k8s/bookstore-roks-deployment.yaml)
+## Documentation
+
+- [Submission report & video script](SUBMISSION_REPORT.md)
+- [OpenAPI 3.0 specification](docs/openapi.yaml)
+- [Data model & business rules](docs/data-model.md)
+- [Agentic IDE workflow journal](docs/agentic-ide-workflow.md)
+- [Docker Compose](docker-compose.yml) · [OpenShift manifest](deploy/k8s/bookstore-roks-deployment.yaml)
