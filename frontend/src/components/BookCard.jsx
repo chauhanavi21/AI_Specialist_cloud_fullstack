@@ -1,5 +1,5 @@
 import React from 'react';
-import { Star, Truck, Plus, Check } from 'lucide-react';
+import { Star, Plus, Check } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 
 export default function BookCard({ book, onOpenDetail }) {
@@ -16,88 +16,63 @@ export default function BookCard({ book, onOpenDetail }) {
   return (
     <div
       onClick={() => onOpenDetail(book)}
-      className="group bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-xs hover:shadow-xl hover:border-ibm-blue/40 transition-all duration-300 flex flex-col cursor-pointer"
+      className="group bg-white rounded-lg border border-brand-100 overflow-hidden hover:border-brand-300 flex flex-col cursor-pointer"
     >
-      {/* Cover Image & Badges */}
-      <div className="relative aspect-[3/4] overflow-hidden bg-gray-100">
+      <div className="aspect-[3/4] overflow-hidden bg-brand-50">
         <img
           src={book.coverImageUrl}
           alt={book.title}
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+          className="w-full h-full object-cover"
           loading="lazy"
         />
-
-        {/* Tentative Delivery Badge (Slide 3 Node 7) */}
-        <div className="absolute top-2.5 left-2.5 bg-slate-900/80 backdrop-blur-md text-white text-[10px] font-semibold px-2 py-0.5 rounded-md flex items-center gap-1 shadow">
-          <Truck className="w-3 h-3 text-sky-400" />
-          <span>Delivers in {book.tentativeDeliveryDays}d</span>
-        </div>
-
-        {/* Featured Badge */}
-        {book.isFeatured && (
-          <div className="absolute top-2.5 right-2.5 bg-amber-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-md shadow">
-            Featured
-          </div>
-        )}
       </div>
 
-      {/* Book Info */}
-      <div className="p-4 flex-1 flex flex-col justify-between">
-        <div>
-          {/* Category & Publisher */}
-          <div className="flex items-center justify-between text-[11px] text-gray-500 font-medium mb-1">
-            <span className="text-ibm-blue font-semibold truncate max-w-[55%]">{book.categoryName}</span>
-            <span className="truncate max-w-[40%] text-right">{book.publisherName}</span>
-          </div>
+      <div className="p-2.5 sm:p-3 flex-1 flex flex-col">
+        <span className="text-[11px] text-brand-600 truncate">{book.categoryName}</span>
+        <h3 className="font-medium text-slate-900 text-sm line-clamp-2 leading-snug mt-0.5 group-hover:text-brand-600">
+          {book.title}
+        </h3>
+        <p className="text-xs text-slate-500 mt-1 line-clamp-1">{book.author}</p>
 
-          {/* Title */}
-          <h3 className="font-bold text-gray-900 text-sm line-clamp-2 leading-snug group-hover:text-ibm-blue transition">
-            {book.title}
-          </h3>
-
-          {/* Author */}
-          <p className="text-xs text-gray-600 mt-1 mb-2 line-clamp-1">{book.author}</p>
-
-          {/* Star Rating */}
-          <div className="flex items-center gap-1.5 mb-3">
-            <div className="flex items-center text-amber-500">
-              <Star className="w-3.5 h-3.5 fill-current" />
-            </div>
-            <span className="text-xs font-bold text-gray-800">{book.rating.toFixed(1)}</span>
-            <span className="text-[11px] text-gray-400">({book.reviewCount})</span>
-          </div>
+        <div className="flex items-center gap-1 mt-2 text-xs text-slate-600">
+          <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+          <span>{book.rating.toFixed(1)}</span>
+          <span className="text-slate-400">({book.reviewCount})</span>
         </div>
 
-        {/* Pricing and Action */}
-        <div className="pt-3 border-t border-gray-100 flex items-center justify-between mt-auto">
+        <p className="text-[11px] text-slate-500 mt-1">
+          Delivery in {book.tentativeDeliveryDays} days
+        </p>
+
+        <div className="pt-3 mt-auto flex flex-wrap items-center justify-between gap-x-2 gap-y-2">
           <div>
-            <div className="text-base font-extrabold text-gray-900">
+            <span className="text-base font-semibold text-slate-900">
               ${book.price.toFixed(2)}
-            </div>
+            </span>
             {book.originalPrice > book.price && (
-              <div className="text-[11px] text-gray-400 line-through">
+              <span className="ml-1.5 text-xs text-slate-400 line-through">
                 ${book.originalPrice.toFixed(2)}
-              </div>
+              </span>
             )}
           </div>
 
           <button
             onClick={handleAdd}
-            className={`p-2 rounded-xl text-xs font-semibold transition flex items-center gap-1 shadow-xs ${
+            className={`px-2.5 py-2 sm:py-1.5 rounded-md text-xs font-medium flex items-center gap-1 ${
               inCartQty > 0
-                ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200'
-                : 'bg-ibm-blue text-white hover:bg-ibm-darkBlue'
+                ? 'bg-brand-50 text-brand-700 border border-brand-200'
+                : 'bg-brand-600 text-white hover:bg-brand-700'
             }`}
-            title="Add to shopping basket"
+            title="Add to basket"
           >
             {inCartQty > 0 ? (
               <>
-                <Check className="w-4 h-4" />
-                <span>{inCartQty} in cart</span>
+                <Check className="w-3.5 h-3.5" />
+                <span>{inCartQty} in basket</span>
               </>
             ) : (
               <>
-                <Plus className="w-4 h-4" />
+                <Plus className="w-3.5 h-3.5" />
                 <span>Add</span>
               </>
             )}
