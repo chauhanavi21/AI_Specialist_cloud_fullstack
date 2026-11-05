@@ -1,373 +1,352 @@
-import React, { useState, useEffect } from 'react';
-import { X } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Check, Tag } from 'lucide-react';
+import Modal, { ModalHeader } from './Modal';
+import BookCover from './BookCover';
+import AddressForm from './AddressForm';
+import PaymentPanel, { EMPTY_PAYMENT, validatePayment } from './PaymentPanel';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
+import { useToast } from '../context/ToastContext';
+import { deliveryBy, inr } from '../lib/format';
 
-const inputClass =
-  'w-full min-w-0 px-3 py-2 text-base sm:text-sm bg-white border border-brand-200 rounded-md focus:outline-none focus:border-brand-500';
-
-export default function CheckoutModal({ isOpen, onClose, onOrderSuccess }) {
+export default function CheckoutModal({ isOpen, onClose, onOrderSuccess, onOpenWallet }) {
   const { user, refreshUser } = useAuth();
-  const { cart, refreshCart } = useCart();
+  const { cart, refreshCart, updateQuantity } = useCart();
+  const toast = useToast();
 
   const [addresses, setAddresses] = useState([]);
   const [selectedAddressId, setSelectedAddressId] = useState(null);
-  const [showNewAddressForm, setShowNewAddressForm] = useState(false);
-  const [newAddress, setNewAddress] = useState({
-    recipientName: '',
-    streetAddress: '',
-    city: '',
-    state: '',
-    postalCode: '',
-    country: 'United States',
-    isDefault: false,
-  });
+  const [showNewAddress, setShowNewAddress] = useState(false);
 
-  const [paymentMethod, setPaymentMethod] = useState('CREDIT_CARD');
-  const [cardDetails] = useState({
-    cardNumber: '4242 •••• •••• 4242',
-    expiry: '12/28',
-    cvv: '123',
-    cardLast4: '4242',
-  });
+  const [method, setMethod] = useState('CREDIT_CARD');
+  const [payment, setPayment] = useState(EMPTY_PAYMENT);
+  const [paymentErrors, setPaymentErrors] = useState({});
 
-  // Gift Points Redemption Engine
-  const [pointsToRedeem, setPointsToRedeem] = useState(0);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [errorMsg, setErrorMsg] = useState('');
+  const [couponInput, setCouponInput] = useState('');
+  const [appliedCoupon, setAppliedCoupon] = useState('');
+  const [couponError, setCouponError] = useState('');
+  const [points, setPoints] = useState(0);
 
+  const [quote, setQuote] = useState(null);
+  const [quoteError, setQuoteError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState('');
+
+  // Reset the whole form each time checkout opens.
   useEffect(() => {
     if (!isOpen || !user) return;
-    setErrorMsg('');
-    setPointsToRedeem(0);
+    setSubmitError('');
+    setPaymentErrors({});
+    setPayment(EMPTY_PAYMENT);
+    setMethod('CREDIT_CARD');
+    setPoints(0);
+    setCouponInput('');
+    setAppliedCoupon('');
+    setCouponError('');
 
     api.getAddresses()
       .then((data) => {
         setAddresses(data || []);
         if (data && data.length > 0) {
-          const defaultAddr = data.find(a => a.isDefault) || data[0];
-          setSelectedAddressId(defaultAddr.id);
+          setSelectedAddressId((data.find((a) => a.isDefault) || data[0]).id);
+          setShowNewAddress(false);
         } else {
-          setShowNewAddressForm(true);
+          setShowNewAddress(true);
         }
       })
-      .catch((err) => console.error('Failed to load addresses', err));
-  }, [isOpen, user]);
+      .catch((err) => setSubmitError(err.message || 'Could not load your addresses'));
+  }, [isOpen, user?.id]);
 
-  if (!isOpen) return null;
+  // The server prices the order; the screen only displays what it returns.
+  useEffect(() => {
+    if (!isOpen || !user || cart.items.length === 0) return;
+    let cancelled = false;
+    api.quoteOrder({ couponCode: appliedCoupon || null, pointsToRedeem: points })
+      .then((q) => { if (!cancelled) { setQuote(q); setQuoteError(''); } })
+      .catch((err) => { if (!cancelled) setQuoteError(err.message || 'Could not price your order'); });
+    return () => { cancelled = true; };
+  }, [isOpen, user?.id, cart, appliedCoupon, points]);
 
-  // Max points redeemable cannot exceed total cart value
-  const pointsDiscount = (pointsToRedeem * 0.10);
-  const finalTotal = Math.max(0, (cart.totalAmount - pointsDiscount));
-  const maxPossiblePoints = Math.min(
-    user?.giftPointsBalance || 0,
-    Math.floor(cart.totalAmount / 0.10)
-  );
+  const walletBalance = quote?.walletBalance ?? user?.walletBalance ?? 0;
+  const payable = quote?.payable ?? cart.totalAmount;
+  const maxPoints = quote?.maxPoints ?? 0;
 
-  const handleCreateAddress = async (e) => {
-    e.preventDefault();
+  const applyCoupon = async (e) => {
+    e?.preventDefault();
+    const code = couponInput.trim();
+    if (!code) return setCouponError('Enter a coupon code');
     try {
-      const created = await api.addAddress(newAddress);
-      setAddresses([...addresses, created]);
-      setSelectedAddressId(created.id);
-      setShowNewAddressForm(false);
-      setNewAddress({
-        recipientName: '',
-        streetAddress: '',
-        city: '',
-        state: '',
-        postalCode: '',
-        country: 'United States',
-        isDefault: false,
-      });
+      const q = await api.quoteOrder({ couponCode: code, pointsToRedeem: points });
+      setQuote(q);
+      setAppliedCoupon(q.couponCode);
+      setCouponInput(q.couponCode);
+      setCouponError('');
+      toast.success(`Coupon ${q.couponCode} applied`);
     } catch (err) {
-      setErrorMsg(err.message || 'Failed to save address');
+      setAppliedCoupon('');
+      setCouponError(err.message || 'That coupon cannot be used');
     }
+    return undefined;
   };
 
-  const handlePlaceOrder = async () => {
+  const removeCoupon = () => {
+    setAppliedCoupon('');
+    setCouponInput('');
+    setCouponError('');
+  };
+
+  const placeOrder = async () => {
+    setSubmitError('');
     if (!selectedAddressId) {
-      setErrorMsg('Please select or add a delivery address');
-      return;
+      return setSubmitError('Select or add a delivery address');
+    }
+    const errors = payable > 0 ? validatePayment(method, payment, walletBalance, payable) : {};
+    setPaymentErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      setSubmitError('Check your payment details');
+      // Jump to the first field that needs fixing so the error is never off screen.
+      const first = Object.keys(errors)[0];
+      requestAnimationFrame(() => {
+        const el = document.getElementById(`pay-${first}`) || document.getElementById('payment-fields');
+        el?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        el?.focus?.({ preventScroll: true });
+      });
+      return undefined;
     }
 
+    setSubmitting(true);
     try {
-      setIsSubmitting(true);
-      setErrorMsg('');
-
-      const payload = {
+      const confirmation = await api.placeOrder({
         addressId: selectedAddressId,
-        paymentMethod,
-        cardLast4: cardDetails.cardLast4,
-        pointsToRedeem: Number(pointsToRedeem),
-      };
-
-      const confirmation = await api.placeOrder(payload);
-      await refreshCart();
-      await refreshUser();
+        paymentMethod: method,
+        ...(method === 'CREDIT_CARD' || method === 'DEBIT_CARD'
+          ? { cardNumber: payment.cardNumber, cardName: payment.cardName, cardExpiry: payment.cardExpiry, cardCvv: payment.cardCvv }
+          : {}),
+        ...(method === 'UPI' ? { upiId: payment.upiId } : {}),
+        couponCode: appliedCoupon || null,
+        pointsToRedeem: points,
+      });
+      setPayment(EMPTY_PAYMENT); // never keep card details in memory after use
+      await Promise.all([refreshCart(), refreshUser()]);
       onClose();
       onOrderSuccess(confirmation);
     } catch (err) {
-      setErrorMsg(err.message || 'Order payment failed. Please check details.');
+      setSubmitError(err.message || 'Payment failed. Please check your details and try again.');
+      await refreshCart();
     } finally {
-      setIsSubmitting(false);
+      setSubmitting(false);
     }
+    return undefined;
   };
 
-  const updateAddress = (field) => (e) =>
-    setNewAddress({ ...newAddress, [field]: e.target.value });
+  const emptyBasket = cart.items.length === 0;
+  const payLabel = useMemo(() => (quote ? `Pay ${inr(quote.payable)}` : 'Pay now'), [quote]);
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/40 flex items-end sm:items-center justify-center p-0 sm:p-4 overflow-y-auto">
-      <div className="relative bg-white rounded-t-xl sm:rounded-lg max-w-xl w-full overflow-hidden sm:my-8 max-h-[95dvh] sm:max-h-[92dvh] flex flex-col">
-        <div className="px-4 sm:px-6 py-4 border-b border-brand-100 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-slate-900">Checkout</h2>
-          <button
-            onClick={onClose}
-            className="p-2 text-slate-400 hover:text-slate-700 rounded-md hover:bg-brand-50"
-          >
-            <X className="w-5 h-5" />
-          </button>
+    <Modal open={isOpen} onClose={onClose} title="Checkout" size="xl">
+      <ModalHeader title="Shopping Cart" subtitle="Review your books, delivery address and payment" onClose={onClose} />
+
+      {emptyBasket ? (
+        <div className="p-12 text-center">
+          <p className="text-fg">Your basket is empty.</p>
+          <button onClick={onClose} className="btn-primary mt-4">Back to the store</button>
         </div>
+      ) : (
+        <div className="overflow-y-auto">
+          <div className="p-5 sm:p-6 grid grid-cols-1 lg:grid-cols-[1fr_20rem] gap-6">
+            <div className="space-y-6 min-w-0">
+              <section aria-label="Items">
+                <ul className="divide-y divide-line border border-line">
+                  {cart.items.map((item) => (
+                    <li key={item.id} className="flex gap-3 p-3 bg-canvas">
+                      <div className="w-14 shrink-0 aspect-[3/4]"><BookCover book={item.book} compact /></div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-fg line-clamp-1">{item.book.title}</p>
+                        <p className="text-xs text-link">by {item.book.author}</p>
+                        <p className="text-[11px] text-fg3 mt-0.5">{item.book.format} · {deliveryBy(item.book)}</p>
+                        <div className="flex items-center gap-3 mt-2">
+                          <div className="flex items-center bg-layer2" role="group" aria-label={`Quantity of ${item.book.title}`}>
+                            <button
+                              onClick={() => item.quantity > 1 && updateQuantity(item.id, item.quantity - 1)}
+                              disabled={item.quantity <= 1}
+                              aria-label="Decrease quantity"
+                              className="size-8 hover:bg-[#4c4c4c] disabled:opacity-40"
+                            >−</button>
+                            <span className="w-7 text-center text-sm">{item.quantity}</span>
+                            <button
+                              onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                              aria-label="Increase quantity"
+                              className="size-8 hover:bg-[#4c4c4c]"
+                            >+</button>
+                          </div>
+                          <span className="text-sm font-semibold text-fg">{inr(item.unitPrice * item.quantity)}</span>
+                        </div>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </section>
 
-        {errorMsg && (
-          <div className="mx-4 sm:mx-6 mt-4 p-3 bg-red-50 border border-red-200 text-red-700 text-sm rounded-md">
-            {errorMsg}
-          </div>
-        )}
-
-        <div className="overflow-y-auto p-4 sm:p-6 space-y-6 sm:space-y-7">
-          {/* Delivery address */}
-          <section className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-slate-900">Delivery address</h3>
-              {!showNewAddressForm && (
-                <button
-                  onClick={() => setShowNewAddressForm(true)}
-                  className="text-sm text-brand-700 hover:underline"
-                >
-                  Add new
-                </button>
-              )}
-            </div>
-
-            {showNewAddressForm ? (
-              <form onSubmit={handleCreateAddress} className="border border-brand-100 rounded-lg p-4 space-y-3">
-                <div className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-2">
-                  <input
-                    type="text"
-                    required
-                    placeholder="Recipient name"
-                    value={newAddress.recipientName}
-                    onChange={updateAddress('recipientName')}
-                    className={inputClass}
-                  />
-                  <input
-                    type="text"
-                    required
-                    placeholder="Street address"
-                    value={newAddress.streetAddress}
-                    onChange={updateAddress('streetAddress')}
-                    className={inputClass}
-                  />
-                </div>
-                <div className="grid grid-cols-1 min-[420px]:grid-cols-3 gap-2">
-                  <input
-                    type="text"
-                    required
-                    placeholder="City"
-                    value={newAddress.city}
-                    onChange={updateAddress('city')}
-                    className={inputClass}
-                  />
-                  <input
-                    type="text"
-                    required
-                    placeholder="State"
-                    value={newAddress.state}
-                    onChange={updateAddress('state')}
-                    className={inputClass}
-                  />
-                  <input
-                    type="text"
-                    required
-                    placeholder="Postal code"
-                    value={newAddress.postalCode}
-                    onChange={updateAddress('postalCode')}
-                    className={inputClass}
-                  />
-                </div>
-                <div className="flex items-center justify-end gap-2">
-                  {addresses.length > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => setShowNewAddressForm(false)}
-                      className="px-3 py-1.5 text-sm text-slate-600 hover:bg-brand-50 rounded-md"
-                    >
-                      Cancel
+              <section aria-label="Delivery address">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-sm font-semibold">Address</h3>
+                  {!showNewAddress && (
+                    <button onClick={() => setShowNewAddress(true)} className="text-sm text-link hover:underline">
+                      Add new address
                     </button>
                   )}
-                  <button
-                    type="submit"
-                    className="px-4 py-1.5 bg-brand-600 hover:bg-brand-700 text-white text-sm font-medium rounded-md"
-                  >
-                    Save address
-                  </button>
                 </div>
-              </form>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {addresses.map((addr) => {
-                  const isSelected = selectedAddressId === addr.id;
-                  return (
-                    <div
-                      key={addr.id}
-                      onClick={() => setSelectedAddressId(addr.id)}
-                      className={`p-3 rounded-lg border cursor-pointer text-sm ${
-                        isSelected
-                          ? 'border-brand-500 bg-brand-50'
-                          : 'border-brand-100 hover:border-brand-300 bg-white'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="font-medium text-slate-900">{addr.recipientName}</span>
-                        {addr.isDefault && (
-                          <span className="text-xs text-slate-500">Default</span>
-                        )}
-                      </div>
-                      <p className="text-slate-600">{addr.streetAddress}</p>
-                      <p className="text-slate-500">{addr.city}, {addr.state} {addr.postalCode}</p>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </section>
 
-          {/* Gift points */}
-          <section className="space-y-2">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-slate-900">Gift points</h3>
-              <span className="text-sm text-slate-500">Balance: {user?.giftPointsBalance || 0}</span>
-            </div>
+                {showNewAddress ? (
+                  <div className="border border-line p-4 bg-canvas">
+                    <AddressForm
+                      defaults={{ recipientName: user?.fullName || '', email: user?.email || '', phoneNumber: user?.phoneNumber || '' }}
+                      canCancel={addresses.length > 0}
+                      onCancel={() => setShowNewAddress(false)}
+                      onSaved={(created) => {
+                        setAddresses((list) => [...list, created]);
+                        setSelectedAddressId(created.id);
+                        setShowNewAddress(false);
+                        setSubmitError('');
+                      }}
+                    />
+                  </div>
+                ) : (
+                  <div role="radiogroup" aria-label="Saved addresses" className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {addresses.map((addr) => {
+                      const selected = selectedAddressId === addr.id;
+                      return (
+                        <button
+                          key={addr.id}
+                          role="radio"
+                          aria-checked={selected}
+                          onClick={() => setSelectedAddressId(addr.id)}
+                          className={`text-left p-3 text-sm border ${
+                            selected ? 'border-brand bg-layer2' : 'border-line bg-canvas hover:border-line2'
+                          }`}
+                        >
+                          <span className="flex items-center justify-between mb-1">
+                            <span className="font-medium text-fg">{addr.recipientName}</span>
+                            {selected && <Check className="w-4 h-4 text-link" aria-hidden="true" />}
+                          </span>
+                          <span className="block text-fg2">{addr.streetAddress}{addr.addressLine2 ? `, ${addr.addressLine2}` : ''}</span>
+                          <span className="block text-fg3">{addr.city}, {addr.state} {addr.postalCode}</span>
+                          <span className="block text-fg3">{addr.country} · {addr.phoneNumber}</span>
+                          {addr.isDefault && <span className="text-[11px] text-link">Default</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </section>
 
-            {maxPossiblePoints > 0 ? (
-              <div className="border border-brand-100 rounded-lg p-4 space-y-2">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-slate-600">
-                    Redeem <strong className="text-slate-900">{pointsToRedeem}</strong> points
-                    <span className="text-slate-400"> (10 points = $1.00)</span>
-                  </span>
-                  <span className="text-slate-900">-${pointsDiscount.toFixed(2)}</span>
-                </div>
-                <input
-                  type="range"
-                  min="0"
-                  max={maxPossiblePoints}
-                  step="10"
-                  value={pointsToRedeem}
-                  onChange={(e) => setPointsToRedeem(Number(e.target.value))}
-                  className="w-full accent-brand-600 cursor-pointer"
-                />
-                <div className="flex justify-between text-xs text-slate-400">
-                  <span>0</span>
-                  <button
-                    type="button"
-                    onClick={() => setPointsToRedeem(maxPossiblePoints)}
-                    className="text-brand-700 hover:underline"
-                  >
-                    Use max ({maxPossiblePoints})
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <p className="text-sm text-slate-500">No points available to redeem.</p>
-            )}
-          </section>
-
-          {/* Payment */}
-          <section className="space-y-3">
-            <h3 className="text-sm font-semibold text-slate-900">Payment method</h3>
-
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              {[
-                { id: 'CREDIT_CARD', label: 'Credit card' },
-                { id: 'DEBIT_CARD', label: 'Debit card' },
-                { id: 'UPI', label: 'UPI' },
-                { id: 'NET_BANKING', label: 'Net banking' },
-              ].map((opt) => (
-                <button
-                  key={opt.id}
-                  type="button"
-                  onClick={() => setPaymentMethod(opt.id)}
-                  className={`py-2.5 rounded-md border text-sm ${
-                    paymentMethod === opt.id
-                      ? 'border-brand-500 bg-brand-50 text-brand-800 font-medium'
-                      : 'border-brand-100 text-slate-700 hover:bg-brand-50'
-                  }`}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-
-            {(paymentMethod === 'CREDIT_CARD' || paymentMethod === 'DEBIT_CARD') && (
-              <div className="border border-brand-100 rounded-lg p-4 space-y-2 text-sm">
-                <div>
-                  <label className="block text-xs text-slate-500 mb-1">Card number (test card)</label>
-                  <input
-                    type="text"
-                    disabled
-                    value={cardDetails.cardNumber}
-                    className="w-full px-3 py-2 bg-brand-50 border border-brand-100 rounded-md text-slate-700 font-mono"
+              <section aria-label="Payment">
+                <h3 className="text-sm font-semibold mb-2">Complete Payment</h3>
+                {payable <= 0 ? (
+                  <p className="text-sm text-fg2 border border-line p-4 bg-canvas">
+                    Your gift points cover this whole order. No payment is needed.
+                  </p>
+                ) : (
+                  <PaymentPanel
+                    method={method}
+                    onMethodChange={(m) => { setMethod(m); setPaymentErrors({}); setSubmitError(''); }}
+                    values={payment}
+                    onChange={setPayment}
+                    errors={paymentErrors}
+                    walletBalance={walletBalance}
+                    payable={payable}
+                    onTopUp={onOpenWallet}
                   />
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="block text-xs text-slate-500 mb-1">Expiry</label>
-                    <input
-                      type="text"
-                      disabled
-                      value={cardDetails.expiry}
-                      className="w-full px-3 py-2 bg-brand-50 border border-brand-100 rounded-md text-slate-700 font-mono"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-slate-500 mb-1">CVV</label>
-                    <input
-                      type="text"
-                      disabled
-                      value={cardDetails.cvv}
-                      className="w-full px-3 py-2 bg-brand-50 border border-brand-100 rounded-md text-slate-700 font-mono"
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
-          </section>
-        </div>
+                )}
+              </section>
+            </div>
 
-        <div className="px-4 sm:px-6 py-4 border-t border-brand-100 bg-brand-50 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="w-full sm:w-auto">
-            <div className="text-xs text-slate-500">
-              Subtotal ${cart.subtotal.toFixed(2)}
-              {pointsDiscount > 0 && ` · Points -$${pointsDiscount.toFixed(2)}`}
-            </div>
-            <div className="text-lg font-semibold text-slate-900">
-              Total ${finalTotal.toFixed(2)}
-            </div>
+            <aside className="lg:sticky lg:top-0 self-start bg-canvas border border-line p-4 space-y-4" aria-label="Order summary">
+              <h3 className="text-sm font-semibold">Grand Total</h3>
+
+              <form onSubmit={applyCoupon} className="space-y-1">
+                <label htmlFor="coupon" className="field-label">Coupon code</label>
+                {appliedCoupon ? (
+                  <div className="flex items-center justify-between bg-layer2 px-3 py-2 text-sm">
+                    <span className="flex items-center gap-2 text-ok"><Tag className="w-4 h-4" aria-hidden="true" />{appliedCoupon}</span>
+                    <button type="button" onClick={removeCoupon} className="text-xs text-link hover:underline">Remove</button>
+                  </div>
+                ) : (
+                  <div className="flex">
+                    <input
+                      id="coupon"
+                      value={couponInput}
+                      onChange={(e) => { setCouponInput(e.target.value.toUpperCase()); setCouponError(''); }}
+                      placeholder="Apply Coupon"
+                      aria-invalid={!!couponError}
+                      aria-describedby={couponError ? 'coupon-err' : undefined}
+                      className="field flex-1 min-w-0"
+                    />
+                    <button type="submit" className="btn-primary">Apply</button>
+                  </div>
+                )}
+                {couponError && <p id="coupon-err" className="field-error" role="alert">{couponError}</p>}
+                {!appliedCoupon && !couponError && <p className="text-[11px] text-fg3">Try WELCOME10 or BOOKS100.</p>}
+              </form>
+
+              {maxPoints > 0 && (
+                <div>
+                  <label htmlFor="points" className="field-label flex justify-between">
+                    <span>Gift points</span>
+                    <span>{points} of {maxPoints} (1 point = ₹1)</span>
+                  </label>
+                  <input
+                    id="points"
+                    type="range"
+                    min="0"
+                    max={maxPoints}
+                    step="1"
+                    value={points}
+                    onChange={(e) => setPoints(Number(e.target.value))}
+                    className="w-full accent-[#0f62fe]"
+                  />
+                  <button type="button" onClick={() => setPoints(maxPoints)} className="text-xs text-link hover:underline">
+                    Use maximum
+                  </button>
+                </div>
+              )}
+
+              {quote ? (
+                <dl className="space-y-1.5 text-sm">
+                  <div className="flex justify-between text-fg2"><dt>Price ({cart.itemCount} items)</dt><dd>{inr(quote.subtotal)}</dd></div>
+                  {quote.couponDiscount > 0 && (
+                    <div className="flex justify-between text-ok"><dt>Coupon</dt><dd>−{inr(quote.couponDiscount)}</dd></div>
+                  )}
+                  <div className="flex justify-between text-fg2"><dt>Tax (12%)</dt><dd>{inr(quote.tax)}</dd></div>
+                  <div className="flex justify-between text-fg2">
+                    <dt>Delivery Charges</dt><dd>{quote.shippingFee === 0 ? 'Free' : inr(quote.shippingFee)}</dd>
+                  </div>
+                  {quote.pointsDiscount > 0 && (
+                    <div className="flex justify-between text-ok"><dt>Gift points</dt><dd>−{inr(quote.pointsDiscount)}</dd></div>
+                  )}
+                  <div className="flex justify-between font-semibold text-fg pt-2 border-t border-line text-base">
+                    <dt>Total Amount</dt><dd>{inr(quote.payable)}</dd>
+                  </div>
+                  {quote.pointsToEarn > 0 && (
+                    <p className="text-[11px] text-fg3">You will earn {quote.pointsToEarn} gift points.</p>
+                  )}
+                </dl>
+              ) : (
+                <p className="text-xs text-fg3" role="status">{quoteError || 'Calculating your total...'}</p>
+              )}
+
+              {submitError && (
+                <p className="text-sm text-danger border-l-2 border-danger pl-3" role="alert">{submitError}</p>
+              )}
+
+              <button onClick={placeOrder} disabled={submitting || !quote} className="btn-primary w-full">
+                {submitting ? 'Processing...' : payLabel}
+              </button>
+            </aside>
           </div>
-
-          <button
-            onClick={handlePlaceOrder}
-            disabled={isSubmitting || !selectedAddressId}
-            className="w-full sm:w-auto px-8 py-2.5 bg-brand-600 hover:bg-brand-700 disabled:bg-slate-300 text-white text-sm font-medium rounded-md"
-          >
-            {isSubmitting ? 'Processing...' : `Pay $${finalTotal.toFixed(2)}`}
-          </button>
         </div>
-      </div>
-    </div>
+      )}
+    </Modal>
   );
 }

@@ -1,9 +1,6 @@
-import React, { useState } from 'react';
-import { X } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import Modal, { ModalHeader } from './Modal';
 import { useAuth } from '../context/AuthContext';
-
-const inputClass =
-  'w-full px-3 py-2 text-base sm:text-sm bg-white border border-brand-200 rounded-md focus:border-brand-500 focus:outline-none';
 
 export default function AuthModal() {
   const { isAuthModalOpen, authModalTab, closeAuthModal, login, register, openAuthModal } = useAuth();
@@ -12,33 +9,51 @@ export default function AuthModal() {
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
+  const [errors, setErrors] = useState({});
   const [errorMsg, setErrorMsg] = useState('');
   const [loading, setLoading] = useState(false);
 
-  if (!isAuthModalOpen) return null;
+  useEffect(() => {
+    if (isAuthModalOpen) {
+      setErrors({});
+      setErrorMsg('');
+    }
+  }, [isAuthModalOpen, authModalTab]);
+
+  const isLogin = authModalTab === 'login';
+
+  const validate = () => {
+    const found = {};
+    if (!isLogin && fullName.trim().length < 2) found.fullName = 'Enter your full name';
+    if (!/^\S+@\S+\.\S+$/.test(email.trim())) found.email = 'Enter a valid email address';
+    if (!password) found.password = 'Enter your password';
+    else if (!isLogin && password.length < 6) found.password = 'Use at least 6 characters';
+    return found;
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    const found = validate();
+    setErrors(found);
     setErrorMsg('');
+    if (Object.keys(found).length > 0) {
+      document.getElementById(`auth-${Object.keys(found)[0]}`)?.focus();
+      return;
+    }
     setLoading(true);
-
     try {
-      if (authModalTab === 'login') {
-        await login(email, password);
-      } else {
-        await register(fullName, email, password, phoneNumber);
-      }
+      if (isLogin) await login(email.trim(), password);
+      else await register(fullName.trim(), email.trim(), password, phoneNumber.trim());
     } catch (err) {
-      setErrorMsg(err.message || 'Authentication failed. Please verify credentials.');
+      setErrorMsg(err.message || 'Authentication failed. Please verify your details.');
     } finally {
       setLoading(false);
     }
   };
 
   const handleQuickDemo = async () => {
-    setEmail('alex.dev@ibm.com');
-    setPassword('Password123!');
     setLoading(true);
+    setErrorMsg('');
     try {
       await login('alex.dev@ibm.com', 'Password123!');
     } catch (err) {
@@ -48,121 +63,62 @@ export default function AuthModal() {
     }
   };
 
-  const tabClass = (active) =>
-    `flex-1 py-2 text-sm rounded-md ${
-      active ? 'bg-white text-slate-900 font-medium' : 'text-slate-500 hover:text-slate-800'
-    }`;
+  const tab = (active) =>
+    `flex-1 py-2.5 text-sm ${active ? 'bg-layer text-fg font-medium border-b-2 border-brand' : 'text-fg3 hover:text-fg'}`;
+
+  const field = (id, label, value, setValue, props = {}) => (
+    <div>
+      <label htmlFor={`auth-${id}`} className="field-label">{label}</label>
+      <input
+        id={`auth-${id}`}
+        value={value}
+        onChange={(e) => { setValue(e.target.value); if (errors[id]) setErrors({ ...errors, [id]: undefined }); }}
+        aria-invalid={!!errors[id]}
+        aria-describedby={errors[id] ? `auth-${id}-err` : undefined}
+        className="field"
+        {...props}
+      />
+      {errors[id] && <p id={`auth-${id}-err`} className="field-error" role="alert">{errors[id]}</p>}
+    </div>
+  );
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/40 flex items-end sm:items-center justify-center p-0 sm:p-4 overflow-y-auto">
-      <div className="relative bg-white rounded-t-xl sm:rounded-lg max-w-sm sm:max-w-sm w-full max-h-[95dvh] overflow-y-auto p-4 sm:p-6 space-y-5">
-        <button
-          onClick={closeAuthModal}
-          className="absolute top-3 right-3 p-2 text-slate-400 hover:text-slate-700 rounded-md hover:bg-brand-50"
-        >
-          <X className="w-5 h-5" />
-        </button>
+    <Modal open={isAuthModalOpen} onClose={closeAuthModal} title={isLogin ? 'Sign in' : 'Create account'} size="sm">
+      <ModalHeader
+        title={isLogin ? 'Sign in' : 'Create your account'}
+        subtitle={isLogin ? undefined : 'New accounts start with 150 gift points.'}
+        onClose={closeAuthModal}
+      />
 
-        <div className="flex bg-brand-100 p-1 rounded-md mr-8">
-          <button
-            onClick={() => { openAuthModal('login'); setErrorMsg(''); }}
-            className={tabClass(authModalTab === 'login')}
-          >
-            Sign in
-          </button>
-          <button
-            onClick={() => { openAuthModal('register'); setErrorMsg(''); }}
-            className={tabClass(authModalTab === 'register')}
-          >
-            Create account
-          </button>
-        </div>
-
-        <div>
-          <h2 className="text-xl font-semibold text-slate-900">
-            {authModalTab === 'login' ? 'Sign in' : 'Create your account'}
-          </h2>
-          {authModalTab === 'register' && (
-            <p className="text-sm text-slate-500 mt-1">New accounts start with 150 gift points.</p>
-          )}
+      <div className="overflow-y-auto p-5 sm:p-6 space-y-4">
+        <div className="flex bg-canvas" role="tablist">
+          <button role="tab" aria-selected={isLogin} onClick={() => openAuthModal('login')} className={tab(isLogin)}>Sign in</button>
+          <button role="tab" aria-selected={!isLogin} onClick={() => openAuthModal('register')} className={tab(!isLogin)}>Create account</button>
         </div>
 
         {errorMsg && (
-          <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-sm rounded-md">
-            {errorMsg}
-          </div>
+          <p className="text-sm text-danger border-l-2 border-danger pl-3" role="alert">{errorMsg}</p>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-3">
-          {authModalTab === 'register' && (
-            <div>
-              <label className="block text-sm text-slate-700 mb-1">Full name</label>
-              <input
-                type="text"
-                required
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                className={inputClass}
-              />
-            </div>
-          )}
+        <form onSubmit={handleSubmit} noValidate className="space-y-3">
+          {!isLogin && field('fullName', 'Full name', fullName, setFullName, { autoComplete: 'name' })}
+          {field('email', 'Email', email, setEmail, { type: 'email', autoComplete: 'email' })}
+          {field('password', 'Password', password, setPassword, { type: 'password', autoComplete: isLogin ? 'current-password' : 'new-password' })}
+          {!isLogin && field('phoneNumber', 'Phone (optional)', phoneNumber, setPhoneNumber, { type: 'tel', autoComplete: 'tel' })}
 
-          <div>
-            <label className="block text-sm text-slate-700 mb-1">Email</label>
-            <input
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className={inputClass}
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm text-slate-700 mb-1">Password</label>
-            <input
-              type="password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className={inputClass}
-            />
-          </div>
-
-          {authModalTab === 'register' && (
-            <div>
-              <label className="block text-sm text-slate-700 mb-1">Phone (optional)</label>
-              <input
-                type="tel"
-                value={phoneNumber}
-                onChange={(e) => setPhoneNumber(e.target.value)}
-                className={inputClass}
-              />
-            </div>
-          )}
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-2.5 bg-brand-600 hover:bg-brand-700 disabled:opacity-60 text-white text-sm font-medium rounded-md mt-1"
-          >
-            {loading ? 'Please wait...' : authModalTab === 'login' ? 'Sign in' : 'Create account'}
+          <button type="submit" disabled={loading} className="btn-primary w-full mt-1">
+            {loading ? 'Please wait...' : isLogin ? 'Sign in' : 'Create account'}
           </button>
         </form>
 
-        {authModalTab === 'login' && (
-          <div className="pt-4 border-t border-brand-100 text-center">
-            <button
-              type="button"
-              onClick={handleQuickDemo}
-              disabled={loading}
-              className="text-sm text-brand-700 hover:underline"
-            >
+        {isLogin && (
+          <div className="pt-3 border-t border-line text-center">
+            <button type="button" onClick={handleQuickDemo} disabled={loading} className="text-sm text-link hover:underline">
               Use demo account
             </button>
           </div>
         )}
       </div>
-    </div>
+    </Modal>
   );
 }
