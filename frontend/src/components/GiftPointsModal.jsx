@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Gift, ArrowUpRight, ArrowDownLeft, RefreshCcw, Sparkles } from 'lucide-react';
+import { X } from 'lucide-react';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 
@@ -19,88 +19,51 @@ export default function GiftPointsModal({ isOpen, onClose }) {
 
   if (!isOpen) return null;
 
+  const balance = pointsData?.currentBalance ?? user?.giftPointsBalance ?? 0;
+
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto animate-fadeIn">
-      <div className="relative bg-white rounded-3xl max-w-lg w-full shadow-2xl overflow-hidden my-8 p-6 space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between pb-4 border-b border-gray-100">
-          <div className="flex items-center gap-2">
-            <div className="w-10 h-10 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center">
-              <Gift className="w-5 h-5" />
-            </div>
-            <div>
-              <h2 className="text-lg font-bold text-gray-900">Loyalty Gift Points Wallet</h2>
-              <p className="text-xs text-gray-500">10 Points = $1.00 USD Discount</p>
-            </div>
+    <div className="fixed inset-0 z-50 bg-slate-900/40 flex items-end sm:items-center justify-center p-0 sm:p-4 overflow-y-auto">
+      <div className="relative bg-white rounded-t-xl sm:rounded-lg max-w-md w-full sm:my-8 p-4 sm:p-6 space-y-5 max-h-[95dvh] overflow-y-auto">
+        <div className="flex items-start justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-900">Gift points</h2>
+            <p className="text-xs text-slate-500">10 points = $1.00 off at checkout</p>
           </div>
           <button
             onClick={onClose}
-            className="p-2 text-gray-400 hover:text-gray-700 rounded-full hover:bg-gray-100 transition"
+            className="p-2 -m-2 text-slate-400 hover:text-slate-700 rounded-md hover:bg-brand-50"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Balance Card */}
-        <div className="bg-gradient-to-br from-amber-500 to-amber-700 text-white rounded-2xl p-5 shadow-lg relative overflow-hidden">
-          <div className="relative z-10 flex items-center justify-between">
-            <div>
-              <span className="text-xs font-semibold text-amber-100 uppercase tracking-wider block">Available Balance</span>
-              <div className="text-3xl font-black mt-1">{pointsData?.currentBalance ?? user?.giftPointsBalance ?? 0} <span className="text-sm font-normal">pts</span></div>
-              <span className="text-xs text-amber-100 mt-1 block">
-                ≈ ${((pointsData?.currentBalance ?? user?.giftPointsBalance ?? 0) * 0.10).toFixed(2)} USD Store Credit
-              </span>
-            </div>
-            <Sparkles className="w-12 h-12 text-amber-200/40" />
+        <div className="bg-brand-50 border border-brand-100 rounded-lg p-4">
+          <span className="text-xs text-slate-500">Balance</span>
+          <div className="text-3xl font-semibold text-slate-900">
+            {balance} <span className="text-sm font-normal text-slate-500">pts</span>
           </div>
+          <span className="text-xs text-slate-500">Worth ${(balance * 0.1).toFixed(2)}</span>
         </div>
 
-        {/* Ledger Transaction History */}
-        <div className="space-y-3">
-          <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider">Points Ledger Activity</h4>
+        <div>
+          <h4 className="text-sm font-semibold text-slate-900 mb-2">Activity</h4>
 
           {loading ? (
-            <div className="p-8 text-center">
-              <div className="w-6 h-6 border-3 border-amber-600 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
-              <p className="text-xs text-gray-400">Loading wallet history...</p>
-            </div>
-          ) : pointsData?.history?.length === 0 ? (
-            <p className="text-xs text-gray-500 text-center py-6">No points activity yet.</p>
+            <p className="text-sm text-slate-400 py-6 text-center">Loading...</p>
+          ) : !pointsData?.history?.length ? (
+            <p className="text-sm text-slate-500 text-center py-6">No activity yet.</p>
           ) : (
-            <div className="max-h-60 overflow-y-auto space-y-2 pr-1">
-              {pointsData?.history?.map((tx) => (
-                <div
-                  key={tx.id}
-                  className="flex items-center justify-between p-3 bg-gray-50 rounded-xl border border-gray-100 text-xs"
-                >
-                  <div className="flex items-center gap-2.5">
-                    {tx.type === 'EARNED' && (
-                      <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
-                        <ArrowDownLeft className="w-4 h-4" />
-                      </div>
-                    )}
-                    {tx.type === 'REDEEMED' && (
-                      <div className="w-7 h-7 rounded-lg bg-rose-100 text-rose-700 flex items-center justify-center shrink-0">
-                        <ArrowUpRight className="w-4 h-4" />
-                      </div>
-                    )}
-                    {tx.type === 'REFUNDED' && (
-                      <div className="w-7 h-7 rounded-lg bg-blue-100 text-ibm-blue flex items-center justify-center shrink-0">
-                        <RefreshCcw className="w-3.5 h-3.5" />
-                      </div>
-                    )}
-                    <div>
-                      <span className="font-bold text-gray-800 block line-clamp-1">{tx.description}</span>
-                      <span className="text-[10px] text-gray-400">
-                        {new Date(tx.createdAt).toLocaleDateString()}
-                      </span>
-                    </div>
+            <div className="max-h-60 overflow-y-auto divide-y divide-brand-100">
+              {pointsData.history.map((tx) => (
+                <div key={tx.id} className="flex items-center justify-between py-2.5 text-sm">
+                  <div>
+                    <span className="text-slate-800 block line-clamp-1">{tx.description}</span>
+                    <span className="text-xs text-slate-400">
+                      {new Date(tx.createdAt).toLocaleDateString()}
+                    </span>
                   </div>
-
-                  <span className={`font-black ${
-                    tx.type === 'REDEEMED' ? 'text-rose-600' : 'text-emerald-600'
-                  }`}>
-                    {tx.type === 'REDEEMED' ? `-${tx.points}` : `+${tx.points}`} pts
+                  <span className={tx.type === 'REDEEMED' ? 'text-slate-500' : 'text-brand-700'}>
+                    {tx.type === 'REDEEMED' ? `-${tx.points}` : `+${tx.points}`}
                   </span>
                 </div>
               ))}
@@ -110,9 +73,9 @@ export default function GiftPointsModal({ isOpen, onClose }) {
 
         <button
           onClick={onClose}
-          className="w-full py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-800 text-xs font-bold rounded-xl transition"
+          className="w-full py-2.5 border border-brand-200 hover:bg-brand-50 text-slate-700 text-sm rounded-md"
         >
-          Close Wallet
+          Close
         </button>
       </div>
     </div>
