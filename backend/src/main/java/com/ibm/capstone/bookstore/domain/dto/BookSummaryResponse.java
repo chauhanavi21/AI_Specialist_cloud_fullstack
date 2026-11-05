@@ -20,8 +20,32 @@ public class BookSummaryResponse {
     private Integer stockQuantity;
     private Integer tentativeDeliveryDays;
     private Boolean isFeatured;
+    private Long authorId;
+    private String language;
+    private String format;
+    private Integer copiesSold;
+    private java.time.LocalDate launchDate;
+    private java.time.LocalDate tentativeDeliveryDate;
 
     public BookSummaryResponse() {}
+
+    public Long getAuthorId() { return authorId; }
+    public void setAuthorId(Long authorId) { this.authorId = authorId; }
+
+    public String getLanguage() { return language; }
+    public void setLanguage(String language) { this.language = language; }
+
+    public String getFormat() { return format; }
+    public void setFormat(String format) { this.format = format; }
+
+    public Integer getCopiesSold() { return copiesSold; }
+    public void setCopiesSold(Integer copiesSold) { this.copiesSold = copiesSold; }
+
+    public java.time.LocalDate getLaunchDate() { return launchDate; }
+    public void setLaunchDate(java.time.LocalDate launchDate) { this.launchDate = launchDate; }
+
+    public java.time.LocalDate getTentativeDeliveryDate() { return tentativeDeliveryDate; }
+    public void setTentativeDeliveryDate(java.time.LocalDate tentativeDeliveryDate) { this.tentativeDeliveryDate = tentativeDeliveryDate; }
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }

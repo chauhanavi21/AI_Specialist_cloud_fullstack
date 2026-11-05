@@ -55,6 +55,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/categories/**", "/api/v1/categories/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/publishers/**", "/api/v1/publishers/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/books/**", "/api/v1/books/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/writers", "/writers/**", "/api/v1/writers", "/api/v1/writers/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/coupons", "/api/v1/coupons").permitAll()
                         // Swagger & Actuator & H2
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         .requestMatchers("/actuator/**").permitAll()

@@ -44,7 +44,11 @@ public class UserServiceImpl implements UserService {
         Address address = new Address();
         address.setUser(user);
         address.setRecipientName(request.getRecipientName().trim());
+        address.setEmail(request.getEmail().trim().toLowerCase());
+        address.setPhoneNumber(request.getPhoneNumber().trim());
         address.setStreetAddress(request.getStreetAddress().trim());
+        address.setAddressLine2(request.getAddressLine2() != null && !request.getAddressLine2().isBlank()
+                ? request.getAddressLine2().trim() : null);
         address.setCity(request.getCity().trim());
         address.setState(request.getState().trim());
         address.setPostalCode(request.getPostalCode().trim());
@@ -65,15 +69,6 @@ public class UserServiceImpl implements UserService {
     }
 
     private AddressResponse mapToAddressResponse(Address address) {
-        return new AddressResponse(
-                address.getId(),
-                address.getRecipientName(),
-                address.getStreetAddress(),
-                address.getCity(),
-                address.getState(),
-                address.getPostalCode(),
-                address.getCountry(),
-                address.getIsDefault()
-        );
+        return AddressResponse.from(address);
     }
 }

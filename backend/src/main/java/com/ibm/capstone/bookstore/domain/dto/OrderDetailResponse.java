@@ -13,9 +13,25 @@ public class OrderDetailResponse extends OrderSummaryResponse {
     private BigDecimal tax;
     private BigDecimal shippingFee;
     private String cancelReason;
+    private String couponCode;
+    private BigDecimal couponDiscount;
+    private BigDecimal walletAmountUsed;
+    private String paymentReference;
     private List<OrderItemResponse> items = new ArrayList<>();
 
     public OrderDetailResponse() {}
+
+    public String getCouponCode() { return couponCode; }
+    public void setCouponCode(String couponCode) { this.couponCode = couponCode; }
+
+    public BigDecimal getCouponDiscount() { return couponDiscount; }
+    public void setCouponDiscount(BigDecimal couponDiscount) { this.couponDiscount = couponDiscount; }
+
+    public BigDecimal getWalletAmountUsed() { return walletAmountUsed; }
+    public void setWalletAmountUsed(BigDecimal walletAmountUsed) { this.walletAmountUsed = walletAmountUsed; }
+
+    public String getPaymentReference() { return paymentReference; }
+    public void setPaymentReference(String paymentReference) { this.paymentReference = paymentReference; }
 
     public AddressResponse getDeliveryAddress() { return deliveryAddress; }
     public void setDeliveryAddress(AddressResponse deliveryAddress) { this.deliveryAddress = deliveryAddress; }

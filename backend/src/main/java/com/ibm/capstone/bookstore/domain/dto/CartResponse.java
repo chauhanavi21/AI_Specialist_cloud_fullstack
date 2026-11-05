@@ -12,8 +12,12 @@ public class CartResponse {
     private BigDecimal estimatedTax = BigDecimal.ZERO;
     private BigDecimal shippingFee = BigDecimal.ZERO;
     private BigDecimal totalAmount = BigDecimal.ZERO;
+    private BigDecimal freeShippingThreshold = BigDecimal.ZERO;
 
     public CartResponse() {}
+
+    public BigDecimal getFreeShippingThreshold() { return freeShippingThreshold; }
+    public void setFreeShippingThreshold(BigDecimal freeShippingThreshold) { this.freeShippingThreshold = freeShippingThreshold; }
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }

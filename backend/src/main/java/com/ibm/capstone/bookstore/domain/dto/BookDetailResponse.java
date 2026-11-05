@@ -1,14 +1,17 @@
 package com.ibm.capstone.bookstore.domain.dto;
 
-import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
 
 public class BookDetailResponse extends BookSummaryResponse {
     private String description;
     private Integer publishedYear;
     private Integer pageCount;
-    private LocalDate tentativeDeliveryDate;
     private CategoryResponse category;
     private PublisherResponse publisher;
+    private StoreDto.WriterProfile writer;
+    private List<StoreDto.ReviewResponse> reviews = new ArrayList<>();
+    private boolean inWishlist;
 
     public BookDetailResponse() {}
 
@@ -21,12 +24,18 @@ public class BookDetailResponse extends BookSummaryResponse {
     public Integer getPageCount() { return pageCount; }
     public void setPageCount(Integer pageCount) { this.pageCount = pageCount; }
 
-    public LocalDate getTentativeDeliveryDate() { return tentativeDeliveryDate; }
-    public void setTentativeDeliveryDate(LocalDate tentativeDeliveryDate) { this.tentativeDeliveryDate = tentativeDeliveryDate; }
-
     public CategoryResponse getCategory() { return category; }
     public void setCategory(CategoryResponse category) { this.category = category; }
 
     public PublisherResponse getPublisher() { return publisher; }
     public void setPublisher(PublisherResponse publisher) { this.publisher = publisher; }
+
+    public StoreDto.WriterProfile getWriter() { return writer; }
+    public void setWriter(StoreDto.WriterProfile writer) { this.writer = writer; }
+
+    public List<StoreDto.ReviewResponse> getReviews() { return reviews; }
+    public void setReviews(List<StoreDto.ReviewResponse> reviews) { this.reviews = reviews; }
+
+    public boolean isInWishlist() { return inWishlist; }
+    public void setInWishlist(boolean inWishlist) { this.inWishlist = inWishlist; }
 }

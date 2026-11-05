@@ -102,7 +102,7 @@ public class AuthServiceImpl implements AuthService {
     }
 
     private UserProfileResponse mapToProfileResponse(User user) {
-        return new UserProfileResponse(
+        UserProfileResponse profile = new UserProfileResponse(
                 user.getId(),
                 user.getEmail(),
                 user.getFullName(),
@@ -111,5 +111,7 @@ public class AuthServiceImpl implements AuthService {
                 user.getRole(),
                 user.getCreatedAt()
         );
+        profile.setWalletBalance(user.getWalletBalance());
+        return profile;
     }
 }

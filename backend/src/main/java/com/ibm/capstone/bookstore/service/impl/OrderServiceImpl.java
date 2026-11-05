@@ -7,20 +7,23 @@ import com.ibm.capstone.bookstore.exception.OrderCancellationException;
 import com.ibm.capstone.bookstore.exception.ResourceNotFoundException;
 import com.ibm.capstone.bookstore.repository.*;
 import com.ibm.capstone.bookstore.service.CartService;
+import com.ibm.capstone.bookstore.service.CouponService;
 import com.ibm.capstone.bookstore.service.GiftPointsService;
 import com.ibm.capstone.bookstore.service.OrderService;
+import com.ibm.capstone.bookstore.service.PaymentGateway;
+import com.ibm.capstone.bookstore.service.PricingCalculator;
+import com.ibm.capstone.bookstore.service.WalletService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
-import java.util.Random;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 
 @Service
@@ -33,12 +36,13 @@ public class OrderServiceImpl implements OrderService {
     private final BookRepository bookRepository;
     private final GiftPointsService giftPointsService;
     private final CartService cartService;
+    private final PricingCalculator pricing;
+    private final CouponService couponService;
+    private final WalletService walletService;
+    private final PaymentGateway paymentGateway;
 
     @Value("${app.orders.cancellation-window-hours:48}")
-    private long cancellationWindowHours;
-
-    @Value("${app.loyalty.dollars-per-point-redeemed:0.10}")
-    private double dollarsPerPointRedeemed;
+    private long cancellationWindowHours = 48;
 
     public OrderServiceImpl(OrderRepository orderRepository,
                             CartRepository cartRepository,
@@ -46,7 +50,11 @@ public class OrderServiceImpl implements OrderService {
                             UserRepository userRepository,
                             BookRepository bookRepository,
                             GiftPointsService giftPointsService,
-                            CartService cartService) {
+                            CartService cartService,
+                            PricingCalculator pricing,
+                            CouponService couponService,
+                            WalletService walletService,
+                            PaymentGateway paymentGateway) {
         this.orderRepository = orderRepository;
         this.cartRepository = cartRepository;
         this.addressRepository = addressRepository;
@@ -54,6 +62,10 @@ public class OrderServiceImpl implements OrderService {
         this.bookRepository = bookRepository;
         this.giftPointsService = giftPointsService;
         this.cartService = cartService;
+        this.pricing = pricing;
+        this.couponService = couponService;
+        this.walletService = walletService;
+        this.paymentGateway = paymentGateway;
     }
 
     @Override
@@ -72,80 +84,101 @@ public class OrderServiceImpl implements OrderService {
             throw new BadRequestException("Shopping cart is empty. Add items before placing an order.");
         }
 
-        // 1. Verify and reduce stock
+        // 1. Validate stock up front; nothing is changed until every check has passed.
         for (CartItem item : cart.getItems()) {
             Book book = item.getBook();
             if (book.getStockQuantity() < item.getQuantity()) {
                 throw new BadRequestException("Book '" + book.getTitle() + "' is out of stock or requested quantity unavailable.");
             }
-            book.setStockQuantity(book.getStockQuantity() - item.getQuantity());
-            bookRepository.save(book);
         }
 
-        // 2. Compute subtotal & shipping
+        // 2. Price the order: coupon, tax and delivery all come from the shared calculator.
         BigDecimal subtotal = cart.getItems().stream()
                 .map(CartItem::getSubtotal)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        BigDecimal tax = subtotal.multiply(BigDecimal.valueOf(0.08)).setScale(2, RoundingMode.HALF_UP);
-        BigDecimal shippingFee = (subtotal.compareTo(BigDecimal.valueOf(50.00)) >= 0)
-                ? BigDecimal.ZERO
-                : BigDecimal.valueOf(5.99);
+        Coupon coupon = null;
+        BigDecimal couponDiscount = BigDecimal.ZERO;
+        if (request.getCouponCode() != null && !request.getCouponCode().isBlank()) {
+            coupon = couponService.requireApplicable(request.getCouponCode(), subtotal);
+            couponDiscount = coupon.discountFor(subtotal);
+        }
+        PricingCalculator.Breakdown price = pricing.price(subtotal, couponDiscount);
 
-        // 3. Handle Gift Points Redemption (10 points = $1.00 USD)
+        // 3. Gift points redemption.
         int pointsToRedeem = request.getPointsToRedeem() != null ? request.getPointsToRedeem() : 0;
         BigDecimal pointsDiscount = BigDecimal.ZERO;
-
         if (pointsToRedeem > 0) {
             if (user.getGiftPointsBalance() < pointsToRedeem) {
                 throw new BadRequestException("Insufficient gift points balance. Available: " + user.getGiftPointsBalance());
             }
-
-            pointsDiscount = BigDecimal.valueOf(pointsToRedeem * dollarsPerPointRedeemed).setScale(2, RoundingMode.HALF_UP);
-            BigDecimal grossTotal = subtotal.add(tax).add(shippingFee);
-            if (pointsDiscount.compareTo(grossTotal) > 0) {
-                pointsDiscount = grossTotal;
-                pointsToRedeem = (int) Math.ceil(grossTotal.doubleValue() / dollarsPerPointRedeemed);
+            pointsDiscount = pricing.pointsValue(pointsToRedeem);
+            if (pointsDiscount.compareTo(price.grossTotal()) > 0) {
+                pointsDiscount = price.grossTotal();
+                pointsToRedeem = pricing.pointsNeededFor(price.grossTotal());
             }
+        }
 
+        BigDecimal payable = price.grossTotal().subtract(pointsDiscount).max(BigDecimal.ZERO);
+
+        // 4. Payment. A zero balance (fully covered by points) needs no instrument.
+        BigDecimal walletAmountUsed = BigDecimal.ZERO;
+        String paymentReference = "NO-CHARGE";
+        String cardLast4 = null;
+        if (payable.signum() > 0) {
+            if (request.getPaymentMethod() == PaymentMethod.WALLET) {
+                if (user.getWalletBalance().compareTo(payable) < 0) {
+                    throw new BadRequestException("Insufficient wallet balance. Available: ₹" + user.getWalletBalance()
+                            + ", needed: ₹" + payable + ". Top up your wallet or choose another payment method.");
+                }
+                walletAmountUsed = payable;
+            }
+            PaymentGateway.PaymentResult result = paymentGateway.charge(request.getPaymentMethod(), request);
+            paymentReference = result.reference();
+            cardLast4 = result.cardLast4();
+        }
+
+        // 5. Everything validated: now apply the changes.
+        for (CartItem item : cart.getItems()) {
+            Book book = item.getBook();
+            book.setStockQuantity(book.getStockQuantity() - item.getQuantity());
+            book.setCopiesSold(book.getCopiesSold() + item.getQuantity());
+            bookRepository.save(book);
+        }
+
+        if (pointsToRedeem > 0) {
             user.setGiftPointsBalance(user.getGiftPointsBalance() - pointsToRedeem);
         }
-
-        BigDecimal totalAmount = subtotal.add(tax).add(shippingFee).subtract(pointsDiscount);
-        if (totalAmount.compareTo(BigDecimal.ZERO) < 0) {
-            totalAmount = BigDecimal.ZERO;
-        }
-
-        // 4. Calculate earned points (1 point per $10 spent)
-        int pointsEarned = totalAmount.divide(BigDecimal.valueOf(10), 0, RoundingMode.FLOOR).intValue();
+        int pointsEarned = pricing.pointsEarned(payable);
         user.setGiftPointsBalance(user.getGiftPointsBalance() + pointsEarned);
         userRepository.save(user);
 
-        // 5. Create Order
         Order order = new Order();
-        String orderNumber = "BK-" + LocalDate.now().format(DateTimeFormatter.BASIC_ISO_DATE) + "-" + (1000 + new Random().nextInt(9000));
-        order.setOrderNumber(orderNumber);
+        order.setOrderNumber("BK-" + LocalDate.now().format(DateTimeFormatter.BASIC_ISO_DATE)
+                + "-" + (100000 + ThreadLocalRandom.current().nextInt(900000)));
         order.setUser(user);
         order.setDeliveryAddress(address);
         order.setOrderStatus(OrderStatus.CONFIRMED);
         order.setPaymentStatus(PaymentStatus.PAID);
         order.setSubtotal(subtotal);
-        order.setTax(tax);
-        order.setShippingFee(shippingFee);
+        order.setCouponCode(coupon != null ? coupon.getCode() : null);
+        order.setCouponDiscount(couponDiscount);
+        order.setTax(price.tax());
+        order.setShippingFee(price.shippingFee());
         order.setPointsRedeemed(pointsToRedeem);
         order.setPointsDiscount(pointsDiscount);
         order.setPointsEarned(pointsEarned);
-        order.setTotalAmount(totalAmount);
+        order.setWalletAmountUsed(walletAmountUsed);
+        order.setTotalAmount(payable);
         order.setPaymentMethod(request.getPaymentMethod());
-        order.setCardLast4(request.getCardLast4() != null ? request.getCardLast4() : "4242");
+        order.setCardLast4(cardLast4);
+        order.setPaymentReference(paymentReference);
 
-        // Estimated delivery: max delivery days of items in cart
         int maxDeliveryDays = cart.getItems().stream()
                 .mapToInt(i -> i.getBook().getTentativeDeliveryDays())
                 .max().orElse(2);
         order.setEstimatedDeliveryDate(LocalDate.now().plusDays(maxDeliveryDays));
 
-        // Create Order Items
         for (CartItem item : cart.getItems()) {
             OrderItem orderItem = new OrderItem();
             orderItem.setOrder(order);
@@ -161,41 +194,24 @@ public class OrderServiceImpl implements OrderService {
 
         Order savedOrder = orderRepository.save(order);
 
-        // 6. Record Gift Points Transactions
+        // 6. Ledgers.
+        if (walletAmountUsed.signum() > 0) {
+            walletService.debit(user, walletAmountUsed, savedOrder.getId(), "Paid for order " + savedOrder.getOrderNumber());
+        }
         if (pointsToRedeem > 0) {
-            giftPointsService.recordTransaction(
-                    user,
-                    savedOrder.getId(),
-                    pointsToRedeem,
-                    PointsTransactionType.REDEEMED,
-                    "Redeemed on Order #" + savedOrder.getOrderNumber()
-            );
+            giftPointsService.recordTransaction(user, savedOrder.getId(), pointsToRedeem,
+                    PointsTransactionType.REDEEMED, "Redeemed on Order #" + savedOrder.getOrderNumber());
         }
         if (pointsEarned > 0) {
-            giftPointsService.recordTransaction(
-                    user,
-                    savedOrder.getId(),
-                    pointsEarned,
-                    PointsTransactionType.EARNED,
-                    "Earned from Order #" + savedOrder.getOrderNumber()
-            );
+            giftPointsService.recordTransaction(user, savedOrder.getId(), pointsEarned,
+                    PointsTransactionType.EARNED, "Earned from Order #" + savedOrder.getOrderNumber());
         }
 
-        // 7. Clear Shopping Cart
+        // 7. Clear the cart.
         cartService.clearCart(userId);
 
-        OrderConfirmationResponse response = new OrderConfirmationResponse();
-        response.setOrderId(savedOrder.getId());
-        response.setOrderNumber(savedOrder.getOrderNumber());
-        response.setOrderStatus(savedOrder.getOrderStatus());
-        response.setPaymentStatus(savedOrder.getPaymentStatus());
-        response.setTotalAmount(savedOrder.getTotalAmount());
-        response.setPointsRedeemed(savedOrder.getPointsRedeemed());
-        response.setPointsEarned(savedOrder.getPointsEarned());
-        response.setNewGiftPointsBalance(user.getGiftPointsBalance());
-        response.setEstimatedDeliveryDate(savedOrder.getEstimatedDeliveryDate());
-        response.setMessage("Payment authorized and order confirmed! Your books are being prepared for dispatch.");
-
+        OrderConfirmationResponse response = baseResponse(savedOrder, user);
+        response.setMessage("Payment successful and order confirmed! Your books are being prepared for dispatch.");
         return response;
     }
 
@@ -229,58 +245,54 @@ public class OrderServiceImpl implements OrderService {
             throw new OrderCancellationException("Order #" + order.getOrderNumber() + " cannot be cancelled because it has already shipped or completed.");
         }
 
-        // 48-Hour Business Constraint Check
+        // 48-hour business constraint
         Duration duration = Duration.between(order.getCreatedAt(), LocalDateTime.now());
         if (duration.toHours() >= cancellationWindowHours) {
             throw new OrderCancellationException("Cancellation window expired. Orders can only be cancelled within " + cancellationWindowHours + " hours of purchase.");
         }
 
-        // 1. Mark Order as Cancelled and Payment as Refunded
+        // 1. Mark cancelled and refunded
         order.setOrderStatus(OrderStatus.CANCELLED);
         order.setPaymentStatus(PaymentStatus.REFUNDED);
         order.setCancelledAt(LocalDateTime.now());
         order.setCancelReason(request != null && request.getReason() != null ? request.getReason() : "Customer cancelled within 48 hours");
 
-        // 2. Restore Book Stock
+        // 2. Restore stock
         for (OrderItem item : order.getItems()) {
             if (item.getBook() != null) {
                 Book book = item.getBook();
                 book.setStockQuantity(book.getStockQuantity() + item.getQuantity());
+                book.setCopiesSold(Math.max(0, book.getCopiesSold() - item.getQuantity()));
                 bookRepository.save(book);
             }
         }
 
-        // 3. Restore Points & Revoke Earned Points
+        // 3. Restore redeemed points, revoke earned points, return wallet money
         User user = order.getUser();
         if (order.getPointsRedeemed() > 0) {
             user.setGiftPointsBalance(user.getGiftPointsBalance() + order.getPointsRedeemed());
-            giftPointsService.recordTransaction(
-                    user,
-                    order.getId(),
-                    order.getPointsRedeemed(),
-                    PointsTransactionType.REFUNDED,
-                    "Refunded points from cancelled Order #" + order.getOrderNumber()
-            );
+            giftPointsService.recordTransaction(user, order.getId(), order.getPointsRedeemed(),
+                    PointsTransactionType.REFUNDED, "Refunded points from cancelled Order #" + order.getOrderNumber());
         }
         if (order.getPointsEarned() > 0) {
-            user.setGiftPointsBalance(Math.max(0, user.getGiftPointsBalance() - order.getPointsEarned()));
+            int revoked = Math.min(order.getPointsEarned(), user.getGiftPointsBalance());
+            user.setGiftPointsBalance(user.getGiftPointsBalance() - revoked);
+            if (revoked > 0) {
+                giftPointsService.recordTransaction(user, order.getId(), revoked,
+                        PointsTransactionType.REVOKED, "Points reversed for cancelled Order #" + order.getOrderNumber());
+            }
         }
         userRepository.save(user);
 
+        if (order.getWalletAmountUsed() != null && order.getWalletAmountUsed().signum() > 0) {
+            walletService.credit(user, order.getWalletAmountUsed(), order.getId(),
+                    "Refund for cancelled Order #" + order.getOrderNumber());
+        }
+
         Order savedOrder = orderRepository.save(order);
 
-        OrderConfirmationResponse response = new OrderConfirmationResponse();
-        response.setOrderId(savedOrder.getId());
-        response.setOrderNumber(savedOrder.getOrderNumber());
-        response.setOrderStatus(savedOrder.getOrderStatus());
-        response.setPaymentStatus(savedOrder.getPaymentStatus());
-        response.setTotalAmount(savedOrder.getTotalAmount());
-        response.setPointsRedeemed(savedOrder.getPointsRedeemed());
-        response.setPointsEarned(savedOrder.getPointsEarned());
-        response.setNewGiftPointsBalance(user.getGiftPointsBalance());
-        response.setEstimatedDeliveryDate(savedOrder.getEstimatedDeliveryDate());
+        OrderConfirmationResponse response = baseResponse(savedOrder, user);
         response.setMessage("Order #" + savedOrder.getOrderNumber() + " cancelled successfully. Full refund initiated and points restored.");
-
         return response;
     }
 
@@ -302,8 +314,26 @@ public class OrderServiceImpl implements OrderService {
         return cartService.getCartByUserId(userId);
     }
 
-    private OrderSummaryResponse mapToOrderSummary(Order order) {
-        OrderSummaryResponse dto = new OrderSummaryResponse();
+    private OrderConfirmationResponse baseResponse(Order order, User user) {
+        OrderConfirmationResponse response = new OrderConfirmationResponse();
+        response.setOrderId(order.getId());
+        response.setOrderNumber(order.getOrderNumber());
+        response.setOrderStatus(order.getOrderStatus());
+        response.setPaymentStatus(order.getPaymentStatus());
+        response.setTotalAmount(order.getTotalAmount());
+        response.setCouponDiscount(order.getCouponDiscount());
+        response.setWalletAmountUsed(order.getWalletAmountUsed());
+        response.setPaymentReference(order.getPaymentReference());
+        response.setPointsRedeemed(order.getPointsRedeemed());
+        response.setPointsEarned(order.getPointsEarned());
+        response.setNewGiftPointsBalance(user.getGiftPointsBalance());
+        response.setNewWalletBalance(user.getWalletBalance());
+        response.setEstimatedDeliveryDate(order.getEstimatedDeliveryDate());
+        response.setItems(order.getItems().stream().map(OrderConfirmationResponse::itemFrom).collect(Collectors.toList()));
+        return response;
+    }
+
+    private void fillSummary(OrderSummaryResponse dto, Order order) {
         dto.setId(order.getId());
         dto.setOrderNumber(order.getOrderNumber());
         dto.setOrderStatus(order.getOrderStatus());
@@ -323,60 +353,30 @@ public class OrderServiceImpl implements OrderService {
 
         double hoursRemaining = Math.max(0.0, cancellationWindowHours - (age.toMinutes() / 60.0));
         dto.setHoursRemainingToCancel(Math.round(hoursRemaining * 10.0) / 10.0);
+    }
 
+    private OrderSummaryResponse mapToOrderSummary(Order order) {
+        OrderSummaryResponse dto = new OrderSummaryResponse();
+        fillSummary(dto, order);
         return dto;
     }
 
     private OrderDetailResponse mapToOrderDetail(Order order) {
         OrderDetailResponse dto = new OrderDetailResponse();
-        dto.setId(order.getId());
-        dto.setOrderNumber(order.getOrderNumber());
-        dto.setOrderStatus(order.getOrderStatus());
-        dto.setPaymentStatus(order.getPaymentStatus());
-        dto.setTotalAmount(order.getTotalAmount());
-        dto.setPointsRedeemed(order.getPointsRedeemed());
-        dto.setPointsDiscount(order.getPointsDiscount());
-        dto.setPointsEarned(order.getPointsEarned());
-        dto.setItemCount(order.getItems().stream().mapToInt(OrderItem::getQuantity).sum());
-        dto.setCreatedAt(order.getCreatedAt());
-        dto.setEstimatedDeliveryDate(order.getEstimatedDeliveryDate());
+        fillSummary(dto, order);
 
-        Duration age = Duration.between(order.getCreatedAt(), LocalDateTime.now());
-        boolean eligible = (order.getOrderStatus() == OrderStatus.CONFIRMED || order.getOrderStatus() == OrderStatus.PROCESSING)
-                && age.toHours() < cancellationWindowHours;
-        dto.setCanCancel(eligible);
-        double hoursRemaining = Math.max(0.0, cancellationWindowHours - (age.toMinutes() / 60.0));
-        dto.setHoursRemainingToCancel(Math.round(hoursRemaining * 10.0) / 10.0);
-
-        dto.setDeliveryAddress(new AddressResponse(
-                order.getDeliveryAddress().getId(),
-                order.getDeliveryAddress().getRecipientName(),
-                order.getDeliveryAddress().getStreetAddress(),
-                order.getDeliveryAddress().getCity(),
-                order.getDeliveryAddress().getState(),
-                order.getDeliveryAddress().getPostalCode(),
-                order.getDeliveryAddress().getCountry(),
-                order.getDeliveryAddress().getIsDefault()
-        ));
-
+        dto.setDeliveryAddress(AddressResponse.from(order.getDeliveryAddress()));
         dto.setPaymentMethod(order.getPaymentMethod());
         dto.setCardLast4(order.getCardLast4());
         dto.setSubtotal(order.getSubtotal());
         dto.setTax(order.getTax());
         dto.setShippingFee(order.getShippingFee());
+        dto.setCouponCode(order.getCouponCode());
+        dto.setCouponDiscount(order.getCouponDiscount());
+        dto.setWalletAmountUsed(order.getWalletAmountUsed());
+        dto.setPaymentReference(order.getPaymentReference());
         dto.setCancelReason(order.getCancelReason());
-
-        dto.setItems(order.getItems().stream().map(i -> new OrderItemResponse(
-                i.getId(),
-                i.getBook() != null ? i.getBook().getId() : null,
-                i.getBookTitle(),
-                i.getBookAuthor(),
-                i.getCoverImageUrl(),
-                i.getQuantity(),
-                i.getUnitPrice(),
-                i.getTotalPrice()
-        )).collect(Collectors.toList()));
-
+        dto.setItems(order.getItems().stream().map(OrderConfirmationResponse::itemFrom).collect(Collectors.toList()));
         return dto;
     }
 }

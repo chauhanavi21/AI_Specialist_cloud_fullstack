@@ -15,6 +15,7 @@ import com.ibm.capstone.bookstore.repository.CartItemRepository;
 import com.ibm.capstone.bookstore.repository.CartRepository;
 import com.ibm.capstone.bookstore.repository.UserRepository;
 import com.ibm.capstone.bookstore.service.CartService;
+import com.ibm.capstone.bookstore.service.PricingCalculator;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,12 +33,15 @@ public class CartServiceImpl implements CartService {
     private final BookRepository bookRepository;
     private final UserRepository userRepository;
     private final BookServiceImpl bookService;
+    private final PricingCalculator pricing;
 
     public CartServiceImpl(CartRepository cartRepository,
                            CartItemRepository cartItemRepository,
                            BookRepository bookRepository,
                            UserRepository userRepository,
-                           BookServiceImpl bookService) {
+                           BookServiceImpl bookService,
+                           PricingCalculator pricing) {
+        this.pricing = pricing;
         this.cartRepository = cartRepository;
         this.cartItemRepository = cartItemRepository;
         this.bookRepository = bookRepository;
@@ -161,16 +165,11 @@ public class CartServiceImpl implements CartService {
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         dto.setSubtotal(subtotal);
 
-        BigDecimal estimatedTax = subtotal.multiply(BigDecimal.valueOf(0.08)).setScale(2, RoundingMode.HALF_UP);
-        dto.setEstimatedTax(estimatedTax);
-
-        // Free shipping if subtotal > 50.00
-        BigDecimal shippingFee = (subtotal.compareTo(BigDecimal.valueOf(50.00)) >= 0 || subtotal.compareTo(BigDecimal.ZERO) == 0)
-                ? BigDecimal.ZERO
-                : BigDecimal.valueOf(5.99);
-        dto.setShippingFee(shippingFee);
-
-        dto.setTotalAmount(subtotal.add(estimatedTax).add(shippingFee));
+        PricingCalculator.Breakdown price = pricing.price(subtotal, BigDecimal.ZERO);
+        dto.setEstimatedTax(price.tax());
+        dto.setShippingFee(price.shippingFee());
+        dto.setTotalAmount(price.grossTotal());
+        dto.setFreeShippingThreshold(pricing.getFreeShippingThreshold());
         return dto;
     }
 }

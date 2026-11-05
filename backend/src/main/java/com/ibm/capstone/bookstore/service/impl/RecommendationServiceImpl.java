@@ -19,11 +19,14 @@ public class RecommendationServiceImpl implements RecommendationService {
 
     private final OrderRepository orderRepository;
     private final BookRepository bookRepository;
+    private final BookServiceImpl bookService;
 
     public RecommendationServiceImpl(OrderRepository orderRepository,
-                                     BookRepository bookRepository) {
+                                     BookRepository bookRepository,
+                                     BookServiceImpl bookService) {
         this.orderRepository = orderRepository;
         this.bookRepository = bookRepository;
+        this.bookService = bookService;
     }
 
     @Override
@@ -39,12 +42,12 @@ public class RecommendationServiceImpl implements RecommendationService {
         List<Book> recommendedBooks = new ArrayList<>();
 
         if (!purchasedCategories.isEmpty()) {
-            recommendedBooks = bookRepository.findRecommendationsByCategories(purchasedCategories, purchasedBookIds, pageable);
+            recommendedBooks = new ArrayList<>(
+                    bookRepository.findRecommendationsByCategories(purchasedCategories, purchasedBookIds, pageable));
         }
 
         if (recommendedBooks.size() < limit) {
-            List<Book> topRated = bookRepository.findTopRatedBooks(pageable);
-            for (Book b : topRated) {
+            for (Book b : bookRepository.findTopRatedBooks(pageable)) {
                 if (recommendedBooks.size() >= limit) break;
                 if (!recommendedBooks.contains(b)) {
                     recommendedBooks.add(b);
@@ -53,29 +56,7 @@ public class RecommendationServiceImpl implements RecommendationService {
         }
 
         return recommendedBooks.stream()
-                .map(this::mapToBookSummary)
+                .map(bookService::mapToBookSummary)
                 .collect(Collectors.toList());
-    }
-
-    private BookSummaryResponse mapToBookSummary(Book book) {
-        BookSummaryResponse dto = new BookSummaryResponse();
-        dto.setId(book.getId());
-        dto.setTitle(book.getTitle());
-        dto.setAuthor(book.getAuthor());
-        dto.setIsbn(book.getIsbn());
-        dto.setPrice(book.getPrice());
-        dto.setOriginalPrice(book.getOriginalPrice());
-        dto.setRating(book.getRating());
-        dto.setReviewCount(book.getReviewCount());
-        dto.setCoverImageUrl(book.getCoverImageUrl());
-        dto.setCategoryId(book.getCategory().getId());
-        dto.setCategoryName(book.getCategory().getName());
-        dto.setPublisherId(book.getPublisher().getId());
-        dto.setPublisherName(book.getPublisher().getName());
-        dto.setStockQuantity(book.getStockQuantity());
-        dto.setInStock(book.getStockQuantity() > 0);
-        dto.setTentativeDeliveryDays(book.getTentativeDeliveryDays());
-        dto.setIsFeatured(book.getIsFeatured());
-        return dto;
     }
 }

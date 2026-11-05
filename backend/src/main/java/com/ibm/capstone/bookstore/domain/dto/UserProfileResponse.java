@@ -10,8 +10,12 @@ public class UserProfileResponse {
     private Integer giftPointsBalance;
     private String role;
     private LocalDateTime createdAt;
+    private java.math.BigDecimal walletBalance = java.math.BigDecimal.ZERO;
 
     public UserProfileResponse() {}
+
+    public java.math.BigDecimal getWalletBalance() { return walletBalance; }
+    public void setWalletBalance(java.math.BigDecimal walletBalance) { this.walletBalance = walletBalance; }
 
     public UserProfileResponse(Long id, String email, String fullName, String phoneNumber, Integer giftPointsBalance, String role, LocalDateTime createdAt) {
         this.id = id;
