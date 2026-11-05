@@ -7,12 +7,18 @@ spring:
     username: ${SPRING_DATASOURCE_USERNAME:postgres}
     password: ${SPRING_DATASOURCE_PASSWORD:postgres}
     driverClassName: org.postgresql.Driver
+  h2:
+    console:
+      enabled: false
   jpa:
     database-platform: org.hibernate.dialect.PostgreSQLDialect
     hibernate:
-      ddl-auto: update
+      # The schema is created by db/postgres/schema.sql (idempotent), so Hibernate only validates it.
+      ddl-auto: validate
     show-sql: false
   sql:
     init:
       mode: always
-      data-locations: classpath:data.sql
+      # Postgres uses its own idempotent scripts: safe to run on every start, never drops data.
+      schema-locations: classpath:db/postgres/schema.sql
+      data-locations: classpath:db/postgres/data.sql
