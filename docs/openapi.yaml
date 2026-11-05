@@ -6,7 +6,11 @@ info:
     Synthesized and refined using IBM Bob Agentic IDE workflows.
     Includes full e-commerce lifecycle: authentication, catalog browsing, intelligent recommendations,
     shopping cart, gift points redemption, order placement, and 48-hour order cancellation.
-  version: 1.0.0
+
+    v2 adds the wireframe features: catalog filters (language, format, price) and landing shelves,
+    wishlist, followed writers, reviews, wallet, coupons and a server-side order quote.
+    All money is in Indian rupees (INR): 12% tax, free delivery from 499, 1 gift point = 1 rupee.
+  version: 2.0.0
   contact:
     name: Cloud FullStack AI Engineering Team
     email: capstone@ibm-specialist.example.com
@@ -207,8 +211,19 @@ paths:
           schema:
             type: integer
             format: int64
+        - name: language
+          in: query
+          description: Exact language, for example English (see /books/facets)
+          schema:
+            type: string
+        - name: format
+          in: query
+          description: Exact format, for example Paperback, Hardcover or eBook (see /books/facets)
+          schema:
+            type: string
         - name: minPrice
           in: query
+          description: Minimum price in rupees
           schema:
             type: number
             format: double
@@ -221,7 +236,7 @@ paths:
           in: query
           schema:
             type: string
-            enum: [featured, price_asc, price_desc, rating_desc, title_asc, newest]
+            enum: [featured, price_asc, price_desc, rating_desc, title_asc, newest, bestselling]
             default: featured
         - name: page
           in: query
@@ -562,6 +577,345 @@ paths:
           $ref: '#/components/responses/NotFound'
 
 # ==================== DATA COMPONENTS & SCHEMAS ====================
+  # ==================== CATALOG: FACETS & SHELVES ====================
+  /books/facets:
+    get:
+      tags:
+        - Books
+      summary: Languages and formats available as catalog filters
+      operationId: getFacets
+      responses:
+        '200':
+          description: Filter values
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Facets'
+
+  /books/shelves:
+    get:
+      tags:
+        - Books
+      summary: Landing page shelves (bestsellers, new launches, top rated)
+      operationId: getShelves
+      parameters:
+        - name: limit
+          in: query
+          description: Books per shelf
+          schema:
+            type: integer
+            default: 4
+      responses:
+        '200':
+          description: Three shelves of book summaries
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Shelves'
+
+  /books/{id}/reviews:
+    post:
+      tags:
+        - Books
+      summary: Post a review (one per customer per book)
+      operationId: addReview
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReviewRequest'
+      responses:
+        '201':
+          description: Review saved; the book's rating and review count are updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Review'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ==================== WISHLIST & WRITERS ====================
+  /wishlist:
+    get:
+      tags:
+        - Wishlist & Writers
+      summary: My Wishlist
+      operationId: getWishlist
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Wishlisted books, newest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BookSummary'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /wishlist/{bookId}:
+    put:
+      tags:
+        - Wishlist & Writers
+      summary: Add a book to the wishlist (idempotent)
+      operationId: addToWishlist
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: bookId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '204':
+          description: Book is on the wishlist
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags:
+        - Wishlist & Writers
+      summary: Remove a book from the wishlist
+      operationId: removeFromWishlist
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: bookId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '204':
+          description: Book is no longer on the wishlist
+
+  /writers:
+    get:
+      tags:
+        - Wishlist & Writers
+      summary: Writers (My Writers when followed=true, which needs a token)
+      operationId: getWriters
+      parameters:
+        - name: followed
+          in: query
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: Writers with book counts and the caller's follow state
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AuthorSummary'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /writers/{id}:
+    get:
+      tags:
+        - Wishlist & Writers
+      summary: Writer profile with their books
+      operationId: getWriter
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Writer detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthorDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /writers/{id}/follow:
+    put:
+      tags:
+        - Wishlist & Writers
+      summary: Follow a writer (idempotent)
+      operationId: followWriter
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '204':
+          description: Now following
+    delete:
+      tags:
+        - Wishlist & Writers
+      summary: Unfollow a writer
+      operationId: unfollowWriter
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '204':
+          description: No longer following
+
+  # ==================== WALLET & COUPONS ====================
+  /wallet:
+    get:
+      tags:
+        - Wallet & Coupons
+      summary: Wallet balance and transactions
+      operationId: getWallet
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Balance and ledger
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Wallet'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /wallet/top-up:
+    post:
+      tags:
+        - Wallet & Coupons
+      summary: Add money to the wallet (simulated, no real payment is taken)
+      operationId: topUpWallet
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amount]
+              properties:
+                amount:
+                  type: number
+                  minimum: 1
+                  maximum: 50000
+                  example: 500
+      responses:
+        '200':
+          description: Updated wallet
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Wallet'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /coupons:
+    get:
+      tags:
+        - Wallet & Coupons
+      summary: Active coupon codes
+      operationId: listCoupons
+      responses:
+        '200':
+          description: Codes and descriptions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Coupon'
+
+  /coupons/validate:
+    post:
+      tags:
+        - Wallet & Coupons
+      summary: Check a coupon against the current basket
+      operationId: validateCoupon
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code]
+              properties:
+                code:
+                  type: string
+                  example: WELCOME10
+      responses:
+        '200':
+          description: Coupon applies; the rupee discount is returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Coupon'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /orders/quote:
+    post:
+      tags:
+        - Orders & Checkout
+      summary: Price the basket with an optional coupon and gift points, without placing an order
+      description: |
+        Uses the same pricing code as order placement, so the total shown at checkout is the
+        total that is charged. Requested points above the allowed maximum are capped, not rejected.
+      operationId: quoteOrder
+      security:
+        - bearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                couponCode:
+                  type: string
+                  nullable: true
+                pointsToRedeem:
+                  type: integer
+                  example: 100
+      responses:
+        '200':
+          description: Priced basket
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Quote'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
 components:
   securitySchemes:
     bearerAuth:
@@ -695,6 +1049,8 @@ components:
       type: object
       required:
         - recipientName
+        - email
+        - phoneNumber
         - streetAddress
         - city
         - state
@@ -703,22 +1059,34 @@ components:
       properties:
         recipientName:
           type: string
-          example: Jane Doe
+          example: Asha Verma
+        email:
+          type: string
+          format: email
+          example: asha@example.com
+        phoneNumber:
+          type: string
+          example: "+91 98765 43210"
         streetAddress:
           type: string
-          example: 77 Massachusetts Ave
+          example: 12 MG Road
+        addressLine2:
+          type: string
+          nullable: true
+          example: Floor 3
         city:
           type: string
-          example: Cambridge
+          example: Pune
         state:
           type: string
-          example: MA
+          example: Maharashtra
         postalCode:
           type: string
-          example: "02139"
+          description: PIN code
+          example: "411001"
         country:
           type: string
-          example: United States
+          example: India
         isDefault:
           type: boolean
           default: false
@@ -946,14 +1314,34 @@ components:
           example: 1
         paymentMethod:
           type: string
-          enum: [CREDIT_CARD, DEBIT_CARD, UPI, NET_BANKING]
+          enum: [CREDIT_CARD, DEBIT_CARD, UPI, WALLET]
           example: CREDIT_CARD
-        cardLast4:
+        cardNumber:
           type: string
-          example: "4242"
+          description: Validated with the Luhn check, never stored. Test card 4242 4242 4242 4242 succeeds; 4000 0000 0000 0002 is declined.
+          example: "4242 4242 4242 4242"
+        cardName:
+          type: string
+          example: Asha Verma
+        cardExpiry:
+          type: string
+          description: MM/YY, must not be in the past
+          example: "12/30"
+        cardCvv:
+          type: string
+          description: 3 or 4 digits, never stored
+          example: "123"
+        upiId:
+          type: string
+          description: Required for UPI, in the form name@bank
+          example: asha@okbank
+        couponCode:
+          type: string
+          nullable: true
+          example: WELCOME10
         pointsToRedeem:
           type: integer
-          description: Points to redeem ($1 discount per 10 points)
+          description: Points to redeem (1 point = 1 rupee off)
           default: 0
           example: 50
 
@@ -1152,3 +1540,182 @@ components:
         path:
           type: string
           example: /api/v1/orders/1001/cancel
+
+    Facets:
+      type: object
+      properties:
+        languages:
+          type: array
+          items:
+            type: string
+        formats:
+          type: array
+          items:
+            type: string
+
+    Shelves:
+      type: object
+      properties:
+        bestsellers:
+          type: array
+          items:
+            $ref: '#/components/schemas/BookSummary'
+        newLaunches:
+          type: array
+          items:
+            $ref: '#/components/schemas/BookSummary'
+        topRated:
+          type: array
+          items:
+            $ref: '#/components/schemas/BookSummary'
+
+    ReviewRequest:
+      type: object
+      required: [rating, comment]
+      properties:
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+          example: 5
+        comment:
+          type: string
+          maxLength: 100
+          example: Clear and practical.
+
+    Review:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        userName:
+          type: string
+        rating:
+          type: integer
+        comment:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    Writer:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          nullable: true
+        name:
+          type: string
+        bio:
+          type: string
+        photoUrl:
+          type: string
+          nullable: true
+        following:
+          type: boolean
+
+    AuthorSummary:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        photoUrl:
+          type: string
+          nullable: true
+        bookCount:
+          type: integer
+        following:
+          type: boolean
+
+    AuthorDetail:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        bio:
+          type: string
+        photoUrl:
+          type: string
+          nullable: true
+        following:
+          type: boolean
+        books:
+          type: array
+          items:
+            $ref: '#/components/schemas/BookSummary'
+
+    Wallet:
+      type: object
+      properties:
+        balance:
+          type: number
+          example: 1500.00
+        transactions:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+                format: int64
+              amount:
+                type: number
+                description: Positive for money in (top-up, refund), negative for a payment
+              type:
+                type: string
+                enum: [TOP_UP, PAYMENT, REFUND]
+              description:
+                type: string
+              createdAt:
+                type: string
+                format: date-time
+
+    Coupon:
+      type: object
+      properties:
+        code:
+          type: string
+          example: WELCOME10
+        description:
+          type: string
+        discount:
+          type: number
+          nullable: true
+          description: Rupee discount on the current basket (only set by /coupons/validate)
+
+    Quote:
+      type: object
+      properties:
+        subtotal:
+          type: number
+        couponDiscount:
+          type: number
+        couponCode:
+          type: string
+          nullable: true
+        tax:
+          type: number
+        shippingFee:
+          type: number
+        pointsDiscount:
+          type: number
+        pointsApplied:
+          type: integer
+        maxPoints:
+          type: integer
+        payable:
+          type: number
+        pointsToEarn:
+          type: integer
+        walletBalance:
+          type: number
+        walletCoversTotal:
+          type: boolean
