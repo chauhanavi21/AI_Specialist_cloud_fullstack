@@ -1,45 +1,35 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { api } from '../api/client';
 import { useAuth } from './AuthContext';
+import { useToast } from './ToastContext';
 
 const CartContext = createContext(null);
 
+const EMPTY_CART = {
+  items: [],
+  itemCount: 0,
+  subtotal: 0,
+  estimatedTax: 0,
+  shippingFee: 0,
+  totalAmount: 0,
+  freeShippingThreshold: 499,
+};
+
 export function CartProvider({ children }) {
   const { user, openAuthModal } = useAuth();
-  const [cart, setCart] = useState({
-    items: [],
-    itemCount: 0,
-    subtotal: 0,
-    estimatedTax: 0,
-    shippingFee: 0,
-    totalAmount: 0,
-  });
+  const toast = useToast();
+  const [cart, setCart] = useState(EMPTY_CART);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const fetchCart = async () => {
     if (!user) {
-      setCart({
-        items: [],
-        itemCount: 0,
-        subtotal: 0,
-        estimatedTax: 0,
-        shippingFee: 0,
-        totalAmount: 0,
-      });
+      setCart(EMPTY_CART);
       return;
     }
     try {
       setLoading(true);
-      const data = await api.getCart();
-      setCart(data || {
-        items: [],
-        itemCount: 0,
-        subtotal: 0,
-        estimatedTax: 0,
-        shippingFee: 0,
-        totalAmount: 0,
-      });
+      setCart((await api.getCart()) || EMPTY_CART);
     } catch (err) {
       console.error('Failed to load cart', err);
     } finally {
@@ -57,45 +47,35 @@ export function CartProvider({ children }) {
       return;
     }
     try {
-      const updatedCart = await api.addToCart(bookId, quantity);
-      setCart(updatedCart);
+      setCart(await api.addToCart(bookId, quantity));
       setIsCartOpen(true);
     } catch (err) {
-      alert(err.message || 'Failed to add item to cart');
+      toast.error(err.message || 'Failed to add item to basket');
     }
   };
 
   const updateQuantity = async (itemId, quantity) => {
     try {
-      const updatedCart = await api.updateCartItem(itemId, quantity);
-      setCart(updatedCart);
+      setCart(await api.updateCartItem(itemId, quantity));
     } catch (err) {
-      alert(err.message || 'Failed to update quantity');
+      toast.error(err.message || 'Failed to update quantity');
     }
   };
 
   const removeItem = async (itemId) => {
     try {
-      const updatedCart = await api.removeCartItem(itemId);
-      setCart(updatedCart);
+      setCart(await api.removeCartItem(itemId));
     } catch (err) {
-      alert(err.message || 'Failed to remove item');
+      toast.error(err.message || 'Failed to remove item');
     }
   };
 
   const clearCart = async () => {
     try {
       await api.clearCart();
-      setCart({
-        items: [],
-        itemCount: 0,
-        subtotal: 0,
-        estimatedTax: 0,
-        shippingFee: 0,
-        totalAmount: 0,
-      });
+      setCart(EMPTY_CART);
     } catch (err) {
-      console.error('Failed to clear cart', err);
+      toast.error(err.message || 'Failed to empty the basket');
     }
   };
 

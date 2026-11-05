@@ -8,14 +8,11 @@ async function request(endpoint, options = {}) {
   const token = getAuthToken();
   const headers = {
     'Content-Type': 'application/json',
-    ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...options.headers,
   };
 
-  const response = await fetch(`${BASE_URL}${endpoint}`, {
-    ...options,
-    headers,
-  });
+  const response = await fetch(`${BASE_URL}${endpoint}`, { ...options, headers });
 
   if (response.status === 204) {
     return null;
@@ -33,46 +30,64 @@ async function request(endpoint, options = {}) {
   return data;
 }
 
+const json = (method, body) => ({ method, body: body === undefined ? undefined : JSON.stringify(body) });
+
+function toQuery(params = {}) {
+  const query = new URLSearchParams();
+  Object.entries(params).forEach(([key, val]) => {
+    if (val !== undefined && val !== null && val !== '') query.append(key, val);
+  });
+  return query.toString();
+}
+
 export const api = {
   // Auth
-  register: (payload) => request('/auth/register', { method: 'POST', body: JSON.stringify(payload) }),
-  login: (payload) => request('/auth/login', { method: 'POST', body: JSON.stringify(payload) }),
+  register: (payload) => request('/auth/register', json('POST', payload)),
+  login: (payload) => request('/auth/login', json('POST', payload)),
   getMe: () => request('/auth/me'),
 
   // Catalog
   getCategories: () => request('/categories'),
   getPublishers: () => request('/publishers'),
-  getBooks: (params = {}) => {
-    const query = new URLSearchParams();
-    Object.entries(params).forEach(([key, val]) => {
-      if (val !== undefined && val !== null && val !== '') {
-        query.append(key, val);
-      }
-    });
-    return request(`/books?${query.toString()}`);
-  },
+  getFacets: () => request('/books/facets'),
+  getShelves: (limit = 4) => request(`/books/shelves?limit=${limit}`),
+  getBooks: (params = {}) => request(`/books?${toQuery(params)}`),
   getBookById: (id) => request(`/books/${id}`),
   getRelatedBooks: (id, limit = 4) => request(`/books/${id}/related?limit=${limit}`),
+  addReview: (id, payload) => request(`/books/${id}/reviews`, json('POST', payload)),
 
   // Recommendations
   getHistoryRecommendations: (limit = 6) => request(`/recommendations/history?limit=${limit}`),
 
-  // User & Points
+  // Wishlist and writers
+  getWishlist: () => request('/wishlist'),
+  addToWishlist: (bookId) => request(`/wishlist/${bookId}`, { method: 'PUT' }),
+  removeFromWishlist: (bookId) => request(`/wishlist/${bookId}`, { method: 'DELETE' }),
+  getWriters: (followed = false) => request(`/writers?followed=${followed}`),
+  getWriter: (id) => request(`/writers/${id}`),
+  followWriter: (id) => request(`/writers/${id}/follow`, { method: 'PUT' }),
+  unfollowWriter: (id) => request(`/writers/${id}/follow`, { method: 'DELETE' }),
+
+  // User, points and wallet
   getAddresses: () => request('/users/addresses'),
-  addAddress: (payload) => request('/users/addresses', { method: 'POST', body: JSON.stringify(payload) }),
+  addAddress: (payload) => request('/users/addresses', json('POST', payload)),
   getGiftPoints: () => request('/users/points'),
+  getWallet: () => request('/wallet'),
+  topUpWallet: (amount) => request('/wallet/top-up', json('POST', { amount })),
+  getCoupons: () => request('/coupons'),
 
   // Cart
   getCart: () => request('/cart'),
-  addToCart: (bookId, quantity = 1) => request('/cart', { method: 'POST', body: JSON.stringify({ bookId, quantity }) }),
-  updateCartItem: (itemId, quantity) => request(`/cart/items/${itemId}`, { method: 'PUT', body: JSON.stringify({ quantity }) }),
+  addToCart: (bookId, quantity = 1) => request('/cart', json('POST', { bookId, quantity })),
+  updateCartItem: (itemId, quantity) => request(`/cart/items/${itemId}`, json('PUT', { quantity })),
   removeCartItem: (itemId) => request(`/cart/items/${itemId}`, { method: 'DELETE' }),
   clearCart: () => request('/cart', { method: 'DELETE' }),
 
-  // Orders & 48h Cancellation
-  placeOrder: (payload) => request('/orders', { method: 'POST', body: JSON.stringify(payload) }),
+  // Orders and 48 hour cancellation
+  quoteOrder: (payload) => request('/orders/quote', json('POST', payload)),
+  placeOrder: (payload) => request('/orders', json('POST', payload)),
   getOrderHistory: () => request('/orders'),
   getOrderById: (orderId) => request(`/orders/${orderId}`),
-  cancelOrder: (orderId, reason) => request(`/orders/${orderId}/cancel`, { method: 'POST', body: JSON.stringify({ reason }) }),
+  cancelOrder: (orderId, reason) => request(`/orders/${orderId}/cancel`, json('POST', { reason })),
   buyItAgain: (orderId) => request(`/orders/${orderId}/reorder`, { method: 'POST' }),
 };
