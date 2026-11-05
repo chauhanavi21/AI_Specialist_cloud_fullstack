@@ -186,6 +186,7 @@ public class BookServiceImpl implements BookService {
         dto.setAuthor(book.getAuthor());
         dto.setAuthorId(book.getWriter() != null ? book.getWriter().getId() : null);
         dto.setIsbn(book.getIsbn());
+        dto.setBlurb(blurb(book.getDescription()));
         dto.setPrice(book.getPrice());
         dto.setOriginalPrice(book.getOriginalPrice());
         dto.setRating(book.getRating());
@@ -204,6 +205,11 @@ public class BookServiceImpl implements BookService {
         dto.setFormat(book.getFormat());
         dto.setCopiesSold(book.getCopiesSold());
         dto.setLaunchDate(book.getLaunchDate());
+    }
+
+    private static String blurb(String description) {
+        if (description == null) return "";
+        return description.length() <= 120 ? description : description.substring(0, 117).trim() + "...";
     }
 
     private BookDetailResponse mapToBookDetail(Book book, Long userId) {

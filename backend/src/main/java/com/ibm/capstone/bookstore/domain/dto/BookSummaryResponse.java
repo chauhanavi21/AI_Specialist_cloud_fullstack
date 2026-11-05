@@ -21,6 +21,7 @@ public class BookSummaryResponse {
     private Integer tentativeDeliveryDays;
     private Boolean isFeatured;
     private Long authorId;
+    private String blurb;
     private String language;
     private String format;
     private Integer copiesSold;
@@ -28,6 +29,9 @@ public class BookSummaryResponse {
     private java.time.LocalDate tentativeDeliveryDate;
 
     public BookSummaryResponse() {}
+
+    public String getBlurb() { return blurb; }
+    public void setBlurb(String blurb) { this.blurb = blurb; }
 
     public Long getAuthorId() { return authorId; }
     public void setAuthorId(Long authorId) { this.authorId = authorId; }
