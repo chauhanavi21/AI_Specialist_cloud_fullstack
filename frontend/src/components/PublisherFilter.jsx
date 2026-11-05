@@ -1,45 +1,34 @@
 import React from 'react';
-import { Building2 } from 'lucide-react';
 
 export default function PublisherFilter({
   publishers,
   selectedPublisher,
   onSelectPublisher,
 }) {
-  return (
-    <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none mb-6">
-      <div className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 mr-1 shrink-0">
-        <Building2 className="w-3.5 h-3.5" />
-        <span>Publisher / Brand:</span>
-      </div>
+  const btn = (selected) =>
+    `px-3 py-1.5 sm:py-1 rounded-md text-xs whitespace-nowrap shrink-0 ${
+      selected
+        ? 'bg-slate-800 text-white'
+        : 'text-slate-600 hover:bg-brand-100'
+    }`;
 
-      <button
-        onClick={() => onSelectPublisher(null)}
-        className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition ${
-          selectedPublisher === null
-            ? 'bg-gray-900 text-white shadow-xs'
-            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-        }`}
-      >
-        All Brands
+  return (
+    <div className="flex items-center gap-1 overflow-x-auto pb-2 scrollbar-none mb-5 sm:mb-6 -mx-3 px-3 min-[420px]:-mx-4 min-[420px]:px-4 sm:mx-0 sm:px-0">
+      <span className="text-xs text-slate-500 mr-2 shrink-0">Publisher</span>
+
+      <button onClick={() => onSelectPublisher(null)} className={btn(selectedPublisher === null)}>
+        All
       </button>
 
-      {publishers.map((pub) => {
-        const isSelected = selectedPublisher === pub.id;
-        return (
-          <button
-            key={pub.id}
-            onClick={() => onSelectPublisher(pub.id)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition ${
-              isSelected
-                ? 'bg-gray-900 text-white shadow-xs'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            {pub.name}
-          </button>
-        );
-      })}
+      {publishers.map((pub) => (
+        <button
+          key={pub.id}
+          onClick={() => onSelectPublisher(pub.id)}
+          className={btn(selectedPublisher === pub.id)}
+        >
+          {pub.name}
+        </button>
+      ))}
     </div>
   );
 }
