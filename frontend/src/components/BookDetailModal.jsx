@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Star, Truck, ShieldCheck, ShoppingBag, BookOpen, Building2, Calendar, FileText, ChevronRight } from 'lucide-react';
+import { X, Star } from 'lucide-react';
 import { api } from '../api/client';
 import { useCart } from '../context/CartContext';
 
@@ -37,28 +37,22 @@ export default function BookDetailModal({ bookId, onClose, onSelectBook }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto animate-fadeIn">
-      <div className="relative bg-white rounded-3xl max-w-3xl w-full shadow-2xl overflow-hidden my-8 max-h-[90vh] flex flex-col">
-        {/* Close Button */}
+    <div className="fixed inset-0 z-50 bg-slate-900/40 flex items-end sm:items-center justify-center p-0 sm:p-4 overflow-y-auto">
+      <div className="relative bg-white rounded-t-xl sm:rounded-lg max-w-3xl w-full overflow-hidden sm:my-8 max-h-[95dvh] sm:max-h-[90dvh] flex flex-col">
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 z-10 p-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-full transition"
+          className="absolute top-3 right-3 z-10 p-2 text-slate-500 hover:bg-brand-50 rounded-md"
         >
           <X className="w-5 h-5" />
         </button>
 
         {loading ? (
-          <div className="p-16 text-center">
-            <div className="w-10 h-10 border-4 border-ibm-blue border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-            <p className="text-sm text-gray-500 font-medium">Loading book details...</p>
-          </div>
+          <div className="p-16 text-center text-sm text-slate-500">Loading...</div>
         ) : book ? (
-          <div className="overflow-y-auto p-6 sm:p-8 space-y-8">
-            {/* Top Grid: Image & Core Info */}
-            <div className="grid grid-cols-1 sm:grid-cols-12 gap-6">
-              {/* Cover Image */}
+          <div className="overflow-y-auto p-4 sm:p-8 space-y-6 sm:space-y-8">
+            <div className="grid grid-cols-1 sm:grid-cols-12 gap-5 sm:gap-6">
               <div className="sm:col-span-5">
-                <div className="aspect-[3/4] rounded-2xl overflow-hidden bg-gray-100 shadow-md border border-gray-200">
+                <div className="aspect-[3/4] max-w-[14rem] mx-auto sm:max-w-none rounded overflow-hidden bg-brand-50 border border-brand-100">
                   <img
                     src={book.coverImageUrl}
                     alt={book.title}
@@ -67,86 +61,58 @@ export default function BookDetailModal({ bookId, onClose, onSelectBook }) {
                 </div>
               </div>
 
-              {/* Details & Actions */}
               <div className="sm:col-span-7 flex flex-col justify-between">
                 <div>
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="px-2.5 py-0.5 rounded-md text-xs font-bold bg-blue-100 text-ibm-blue">
-                      {book.category?.name || book.categoryName}
-                    </span>
-                    <span className="text-xs text-gray-500 font-medium flex items-center gap-1">
-                      <Building2 className="w-3.5 h-3.5" />
-                      {book.publisher?.name || book.publisherName}
-                    </span>
-                  </div>
+                  <p className="text-xs text-brand-600 mb-1">
+                    {book.category?.name || book.categoryName}
+                    <span className="text-slate-400"> · </span>
+                    <span className="text-slate-500">{book.publisher?.name || book.publisherName}</span>
+                  </p>
 
-                  <h2 className="text-xl sm:text-2xl font-extrabold text-gray-900 leading-tight mb-2">
+                  <h2 className="text-xl sm:text-2xl font-semibold text-slate-900 leading-tight mb-1 pr-8">
                     {book.title}
                   </h2>
+                  <p className="text-sm text-slate-600 mb-3">by {book.author}</p>
 
-                  <p className="text-sm text-gray-600 mb-3 font-medium">By {book.author}</p>
-
-                  <div className="flex items-center gap-2 mb-4">
-                    <div className="flex items-center text-amber-500">
-                      <Star className="w-4 h-4 fill-current" />
-                    </div>
-                    <span className="text-sm font-bold text-gray-900">{book.rating?.toFixed(1)}</span>
-                    <span className="text-xs text-gray-400">({book.reviewCount} customer reviews)</span>
-                    <span className="text-gray-300">|</span>
-                    <span className="text-xs font-semibold text-emerald-600">
-                      {book.stockQuantity > 0 ? `${book.stockQuantity} in stock` : 'Out of stock'}
-                    </span>
+                  <div className="flex items-center gap-2 mb-4 text-sm text-slate-600">
+                    <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
+                    <span>{book.rating?.toFixed(1)}</span>
+                    <span className="text-slate-400">({book.reviewCount} reviews)</span>
+                    <span className="text-slate-300">|</span>
+                    <span>{book.stockQuantity > 0 ? `${book.stockQuantity} in stock` : 'Out of stock'}</span>
                   </div>
 
-                  {/* Price Block */}
-                  <div className="bg-gray-50 border border-gray-200 rounded-2xl p-4 mb-4 flex items-center justify-between">
-                    <div>
-                      <span className="text-xs text-gray-500 block">Special Price</span>
-                      <div className="flex items-baseline gap-2">
-                        <span className="text-2xl font-black text-gray-900">${book.price?.toFixed(2)}</span>
-                        {book.originalPrice > book.price && (
-                          <span className="text-xs text-gray-400 line-through">
-                            ${book.originalPrice?.toFixed(2)}
-                          </span>
-                        )}
-                      </div>
+                  <div className="mb-4">
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-2xl font-semibold text-slate-900">${book.price?.toFixed(2)}</span>
+                      {book.originalPrice > book.price && (
+                        <span className="text-sm text-slate-400 line-through">
+                          ${book.originalPrice?.toFixed(2)}
+                        </span>
+                      )}
                     </div>
-
-                    {/* Tentative Delivery Date Callout */}
-                    <div className="text-right">
-                      <div className="inline-flex items-center gap-1 text-xs font-bold text-ibm-blue bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200">
-                        <Truck className="w-3.5 h-3.5 text-ibm-blue" />
-                        <span>Estimated Delivery: {book.tentativeDeliveryDate || `in ${book.tentativeDeliveryDays} days`}</span>
-                      </div>
-                    </div>
+                    <p className="text-sm text-slate-600 mt-1">
+                      Estimated delivery: {book.tentativeDeliveryDate || `in ${book.tentativeDeliveryDays} days`}
+                    </p>
                   </div>
 
-                  {/* Meta Pills */}
-                  <div className="grid grid-cols-2 gap-2 text-xs text-gray-600 mb-6">
-                    <div className="flex items-center gap-1.5 bg-gray-50 p-2 rounded-lg">
-                      <FileText className="w-3.5 h-3.5 text-gray-400" />
-                      <span>{book.pageCount} Pages</span>
-                    </div>
-                    <div className="flex items-center gap-1.5 bg-gray-50 p-2 rounded-lg">
-                      <Calendar className="w-3.5 h-3.5 text-gray-400" />
-                      <span>Published {book.publishedYear}</span>
-                    </div>
-                  </div>
+                  <p className="text-xs text-slate-500 mb-6">
+                    {book.pageCount} pages · Published {book.publishedYear}
+                  </p>
                 </div>
 
-                {/* Add To Cart Controls */}
-                <div className="flex items-center gap-3 pt-4 border-t border-gray-100">
-                  <div className="flex items-center border border-gray-300 rounded-xl bg-gray-50 p-1">
+                <div className="flex flex-col min-[420px]:flex-row min-[420px]:items-center gap-3 pt-4 border-t border-brand-100">
+                  <div className="flex items-center justify-between min-[420px]:justify-start border border-brand-200 rounded-md">
                     <button
                       onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                      className="w-8 h-8 flex items-center justify-center font-bold text-gray-600 hover:bg-white rounded-lg transition"
+                      className="size-10 sm:size-9 flex items-center justify-center text-slate-600 hover:bg-brand-50"
                     >
                       -
                     </button>
-                    <span className="w-8 text-center text-sm font-bold text-gray-800">{quantity}</span>
+                    <span className="w-8 text-center text-sm text-slate-800">{quantity}</span>
                     <button
                       onClick={() => setQuantity(Math.min(book.stockQuantity || 10, quantity + 1))}
-                      className="w-8 h-8 flex items-center justify-center font-bold text-gray-600 hover:bg-white rounded-lg transition"
+                      className="size-10 sm:size-9 flex items-center justify-center text-slate-600 hover:bg-brand-50"
                     >
                       +
                     </button>
@@ -154,54 +120,41 @@ export default function BookDetailModal({ bookId, onClose, onSelectBook }) {
 
                   <button
                     onClick={handleAddToCart}
-                    className="flex-1 py-3 px-6 bg-ibm-blue hover:bg-ibm-darkBlue text-white font-bold rounded-xl flex items-center justify-center gap-2 shadow-lg transition active:scale-98"
+                    className="min-[420px]:flex-1 py-3 sm:py-2.5 px-5 bg-brand-600 hover:bg-brand-700 text-white text-sm font-medium rounded-md"
                   >
-                    <ShoppingBag className="w-4 h-4" />
-                    <span>Add to Basket · ${(book.price * quantity).toFixed(2)}</span>
+                    Add to basket · ${(book.price * quantity).toFixed(2)}
                   </button>
                 </div>
               </div>
             </div>
 
-            {/* Synopsis Description */}
-            <div className="bg-gray-50 rounded-2xl p-5 border border-gray-200">
-              <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Book Synopsis</h4>
-              <p className="text-sm text-gray-700 leading-relaxed">{book.description}</p>
-              <div className="mt-3 pt-3 border-t border-gray-200 flex items-center gap-2 text-xs text-gray-500">
-                <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                <span>48-Hour Free Cancellation & 100% Refund Guarantee applied to this item.</span>
-              </div>
+            <div>
+              <h4 className="text-sm font-semibold text-slate-900 mb-1">About this book</h4>
+              <p className="text-sm text-slate-700 leading-relaxed">{book.description}</p>
+              <p className="mt-3 text-xs text-slate-500">
+                Orders can be cancelled for a full refund within 48 hours.
+              </p>
             </div>
 
-            {/* Related Products Section (Slide 3 Node 7, Slide 6) */}
             {relatedBooks.length > 0 && (
               <div>
-                <div className="flex items-center justify-between mb-3">
-                  <h4 className="text-sm font-bold text-gray-900 flex items-center gap-2">
-                    <BookOpen className="w-4 h-4 text-ibm-blue" />
-                    <span>Related Books in This Category</span>
-                  </h4>
-                  <span className="text-xs text-gray-500">Curated recommendations</span>
-                </div>
+                <h4 className="text-sm font-semibold text-slate-900 mb-3">Related books</h4>
 
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   {relatedBooks.map((rel) => (
                     <div
                       key={rel.id}
                       onClick={() => onSelectBook(rel)}
-                      className="p-3 bg-white rounded-xl border border-gray-200 hover:border-ibm-blue hover:shadow-md transition cursor-pointer group"
+                      className="p-2 bg-white rounded-lg border border-brand-100 hover:border-brand-300 cursor-pointer group"
                     >
-                      <div className="aspect-[3/4] rounded-lg overflow-hidden bg-gray-100 mb-2">
-                        <img src={rel.coverImageUrl} alt={rel.title} className="w-full h-full object-cover group-hover:scale-105 transition" />
+                      <div className="aspect-[3/4] rounded overflow-hidden bg-brand-50 mb-2">
+                        <img src={rel.coverImageUrl} alt={rel.title} className="w-full h-full object-cover" />
                       </div>
-                      <h5 className="text-xs font-bold text-gray-900 line-clamp-1 group-hover:text-ibm-blue transition">
+                      <h5 className="text-xs font-medium text-slate-900 line-clamp-1 group-hover:text-brand-600">
                         {rel.title}
                       </h5>
-                      <p className="text-[11px] text-gray-500 line-clamp-1">{rel.author}</p>
-                      <div className="flex items-center justify-between mt-2">
-                        <span className="text-xs font-extrabold text-gray-900">${rel.price.toFixed(2)}</span>
-                        <ChevronRight className="w-3.5 h-3.5 text-gray-400 group-hover:text-ibm-blue" />
-                      </div>
+                      <p className="text-[11px] text-slate-500 line-clamp-1">{rel.author}</p>
+                      <span className="text-xs font-semibold text-slate-900">${rel.price.toFixed(2)}</span>
                     </div>
                   ))}
                 </div>
