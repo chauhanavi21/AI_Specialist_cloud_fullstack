@@ -14,9 +14,9 @@ VALUES
 -- Seed Categories
 INSERT INTO categories (id, name, slug, description, book_count)
 VALUES 
-(1, 'Cloud & Containers', 'cloud-containers', 'Kubernetes, OpenShift, Red Hat, Docker, and hybrid cloud architecture.', 4),
+(1, 'Cloud & Containers', 'cloud-containers', 'Kubernetes, OpenShift, Red Hat, Docker, and hybrid cloud architecture.', 2),
 (2, 'AI & Machine Learning', 'ai-ml', 'Generative AI, Agentic workflows, LLMs, and enterprise AI engineering.', 4),
-(3, 'Microservices & APIs', 'microservices-apis', 'Spring Boot 3, RESTful design, event-driven architectures, and Kafka.', 4),
+(3, 'Microservices & APIs', 'microservices-apis', 'Spring Boot 3, RESTful design, event-driven architectures, and Kafka.', 3),
 (4, 'DevOps & SRE', 'devops-sre', 'CI/CD pipelines, GitOps, observability, automated testing, and reliability.', 3),
 (5, 'Software Engineering & Architecture', 'software-engineering', 'Domain-Driven Design, clean code, design patterns, and system design.', 3);
 
