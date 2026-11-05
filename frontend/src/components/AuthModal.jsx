@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
-import { X, Lock, Mail, User as UserIcon, Phone, Sparkles } from 'lucide-react';
+import { X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+
+const inputClass =
+  'w-full px-3 py-2 text-base sm:text-sm bg-white border border-brand-200 rounded-md focus:border-brand-500 focus:outline-none';
 
 export default function AuthModal() {
   const { isAuthModalOpen, authModalTab, closeAuthModal, login, register, openAuthModal } = useAuth();
@@ -45,136 +48,117 @@ export default function AuthModal() {
     }
   };
 
+  const tabClass = (active) =>
+    `flex-1 py-2 text-sm rounded-md ${
+      active ? 'bg-white text-slate-900 font-medium' : 'text-slate-500 hover:text-slate-800'
+    }`;
+
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto animate-fadeIn">
-      <div className="relative bg-white rounded-3xl max-w-md w-full shadow-2xl p-6 sm:p-8 space-y-6">
+    <div className="fixed inset-0 z-50 bg-slate-900/40 flex items-end sm:items-center justify-center p-0 sm:p-4 overflow-y-auto">
+      <div className="relative bg-white rounded-t-xl sm:rounded-lg max-w-sm sm:max-w-sm w-full max-h-[95dvh] overflow-y-auto p-4 sm:p-6 space-y-5">
         <button
           onClick={closeAuthModal}
-          className="absolute top-4 right-4 p-2 text-gray-400 hover:text-gray-700 rounded-full hover:bg-gray-100 transition"
+          className="absolute top-3 right-3 p-2 text-slate-400 hover:text-slate-700 rounded-md hover:bg-brand-50"
         >
           <X className="w-5 h-5" />
         </button>
 
-        {/* Tab Switcher */}
-        <div className="flex bg-gray-100 p-1 rounded-2xl">
+        <div className="flex bg-brand-100 p-1 rounded-md mr-8">
           <button
             onClick={() => { openAuthModal('login'); setErrorMsg(''); }}
-            className={`flex-1 py-2 text-xs font-bold rounded-xl transition ${
-              authModalTab === 'login' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-900'
-            }`}
+            className={tabClass(authModalTab === 'login')}
           >
-            Sign In
+            Sign in
           </button>
           <button
             onClick={() => { openAuthModal('register'); setErrorMsg(''); }}
-            className={`flex-1 py-2 text-xs font-bold rounded-xl transition ${
-              authModalTab === 'register' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-900'
-            }`}
+            className={tabClass(authModalTab === 'register')}
           >
-            Create Account
+            Create account
           </button>
         </div>
 
         <div>
-          <h2 className="text-xl font-extrabold text-gray-900">
-            {authModalTab === 'login' ? 'Welcome Back!' : 'Join Bob Bookstore'}
+          <h2 className="text-xl font-semibold text-slate-900">
+            {authModalTab === 'login' ? 'Sign in' : 'Create your account'}
           </h2>
-          <p className="text-xs text-gray-500 mt-1">
-            {authModalTab === 'login'
-              ? 'Sign in to access your cart, points, and 48h order management.'
-              : 'Sign up and get 150 free gift points ($15 credit) instantly.'}
-          </p>
+          {authModalTab === 'register' && (
+            <p className="text-sm text-slate-500 mt-1">New accounts start with 150 gift points.</p>
+          )}
         </div>
 
         {errorMsg && (
-          <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl font-medium">
+          <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-sm rounded-md">
             {errorMsg}
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-3 text-xs">
+        <form onSubmit={handleSubmit} className="space-y-3">
           {authModalTab === 'register' && (
             <div>
-              <label className="block text-[11px] font-semibold text-gray-600 mb-1">Full Name</label>
-              <div className="relative">
-                <UserIcon className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Alex Rivera"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-ibm-blue focus:outline-none"
-                />
-              </div>
+              <label className="block text-sm text-slate-700 mb-1">Full name</label>
+              <input
+                type="text"
+                required
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                className={inputClass}
+              />
             </div>
           )}
 
           <div>
-            <label className="block text-[11px] font-semibold text-gray-600 mb-1">Email Address</label>
-            <div className="relative">
-              <Mail className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
-                type="email"
-                required
-                placeholder="name@company.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full pl-9 pr-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-ibm-blue focus:outline-none"
-              />
-            </div>
+            <label className="block text-sm text-slate-700 mb-1">Email</label>
+            <input
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className={inputClass}
+            />
           </div>
 
           <div>
-            <label className="block text-[11px] font-semibold text-gray-600 mb-1">Password</label>
-            <div className="relative">
-              <Lock className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
-                type="password"
-                required
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full pl-9 pr-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-ibm-blue focus:outline-none"
-              />
-            </div>
+            <label className="block text-sm text-slate-700 mb-1">Password</label>
+            <input
+              type="password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className={inputClass}
+            />
           </div>
 
           {authModalTab === 'register' && (
             <div>
-              <label className="block text-[11px] font-semibold text-gray-600 mb-1">Phone Number (Optional)</label>
-              <div className="relative">
-                <Phone className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                <input
-                  type="tel"
-                  placeholder="+1-555-0100"
-                  value={phoneNumber}
-                  onChange={(e) => setPhoneNumber(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-ibm-blue focus:outline-none"
-                />
-              </div>
+              <label className="block text-sm text-slate-700 mb-1">Phone (optional)</label>
+              <input
+                type="tel"
+                value={phoneNumber}
+                onChange={(e) => setPhoneNumber(e.target.value)}
+                className={inputClass}
+              />
             </div>
           )}
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3 bg-ibm-blue hover:bg-ibm-darkBlue text-white font-bold rounded-xl shadow-md transition active:scale-98 mt-2"
+            className="w-full py-2.5 bg-brand-600 hover:bg-brand-700 disabled:opacity-60 text-white text-sm font-medium rounded-md mt-1"
           >
-            {loading ? 'Please wait...' : authModalTab === 'login' ? 'Sign In' : 'Create Account'}
+            {loading ? 'Please wait...' : authModalTab === 'login' ? 'Sign in' : 'Create account'}
           </button>
         </form>
 
-        {/* Quick Demo Fill Button */}
         {authModalTab === 'login' && (
-          <div className="pt-2 border-t border-gray-100">
+          <div className="pt-4 border-t border-brand-100 text-center">
             <button
               type="button"
               onClick={handleQuickDemo}
-              className="w-full py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-900 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition border border-indigo-200"
+              disabled={loading}
+              className="text-sm text-brand-700 hover:underline"
             >
-              <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
-              <span>⚡ Quick Sign In as Demo User (Alex Rivera)</span>
+              Use demo account
             </button>
           </div>
         )}
