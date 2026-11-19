@@ -16,6 +16,7 @@ import com.ibm.capstone.bookstore.repository.BookRepository;
 import com.ibm.capstone.bookstore.repository.ReviewRepository;
 import com.ibm.capstone.bookstore.repository.UserRepository;
 import com.ibm.capstone.bookstore.repository.WishlistRepository;
+import com.ibm.capstone.bookstore.security.Entitlements;
 import com.ibm.capstone.bookstore.service.impl.BookServiceImpl;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -83,7 +84,7 @@ public class EngagementService {
         return authorRepository.findAllByOrderByNameAsc().stream()
                 .filter(a -> !followedOnly || followed.contains(a.getId()))
                 .map(a -> new StoreDto.AuthorSummary(a.getId(), a.getName(), a.getPhotoUrl(),
-                        bookRepository.findByWriterId(a.getId()).size(), followed.contains(a.getId())))
+                        bookRepository.findByWriterIdVisible(a.getId(), Entitlements.visibleCategories()).size(), followed.contains(a.getId())))
                 .collect(Collectors.toList());
     }
 
@@ -91,7 +92,7 @@ public class EngagementService {
     public StoreDto.AuthorDetail getWriter(Long authorId, Long userId) {
         Author author = loadAuthor(authorId);
         boolean following = userId != null && followRepository.findByUserIdAndAuthorId(userId, authorId).isPresent();
-        List<BookSummaryResponse> books = bookRepository.findByWriterId(authorId).stream()
+        List<BookSummaryResponse> books = bookRepository.findByWriterIdVisible(authorId, Entitlements.visibleCategories()).stream()
                 .map(bookService::mapToBookSummary)
                 .collect(Collectors.toList());
         return new StoreDto.AuthorDetail(author.getId(), author.getName(), author.getBio(), author.getPhotoUrl(), following, books);

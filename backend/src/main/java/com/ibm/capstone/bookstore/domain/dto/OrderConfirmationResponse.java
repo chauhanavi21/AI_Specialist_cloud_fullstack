@@ -28,7 +28,7 @@ public class OrderConfirmationResponse {
     public OrderConfirmationResponse() {}
 
     public static OrderItemResponse itemFrom(OrderItem i) {
-        return new OrderItemResponse(
+        OrderItemResponse dto = new OrderItemResponse(
                 i.getId(),
                 i.getBook() != null ? i.getBook().getId() : null,
                 i.getBookTitle(),
@@ -37,6 +37,8 @@ public class OrderConfirmationResponse {
                 i.getQuantity(),
                 i.getUnitPrice(),
                 i.getTotalPrice());
+        dto.setRefundedQuantity(i.getRefundedQuantity());
+        return dto;
     }
 
     public Long getOrderId() { return orderId; }

@@ -14,22 +14,30 @@ import java.math.RoundingMode;
 public class PricingCalculator {
 
     private final PricingProperties props;
+    private final ShippingCalculator shippingRates;
 
     public PricingCalculator(PricingProperties props) {
         this.props = props;
+        this.shippingRates = new ShippingCalculator(props);
     }
 
     public record Breakdown(BigDecimal subtotal, BigDecimal couponDiscount, BigDecimal tax,
                             BigDecimal shippingFee, BigDecimal grossTotal) {}
 
-    /** Prices an order. Tax and the free-delivery test apply to the subtotal after the coupon. */
+    /** Prices an order for the default (regional) zone, used by the basket before an address is chosen. */
     public Breakdown price(BigDecimal subtotal, BigDecimal couponDiscount) {
+        return price(subtotal, couponDiscount, com.ibm.capstone.bookstore.domain.entities.ShippingZone.REGIONAL);
+    }
+
+    /** Prices an order. Tax and the free-delivery test apply to the subtotal after the coupon; the charge depends on the zone. */
+    public Breakdown price(BigDecimal subtotal, BigDecimal couponDiscount,
+                           com.ibm.capstone.bookstore.domain.entities.ShippingZone zone) {
         BigDecimal discount = couponDiscount == null ? BigDecimal.ZERO : couponDiscount;
         BigDecimal taxable = subtotal.subtract(discount).max(BigDecimal.ZERO);
         BigDecimal tax = taxable.multiply(props.getTaxRate()).setScale(2, RoundingMode.HALF_UP);
         BigDecimal shipping = (subtotal.signum() == 0 || taxable.compareTo(props.getFreeShippingThreshold()) >= 0)
                 ? BigDecimal.ZERO
-                : props.getShippingFee();
+                : shippingRates.feeFor(zone);
         return new Breakdown(subtotal, discount, tax, shipping, taxable.add(tax).add(shipping));
     }
 

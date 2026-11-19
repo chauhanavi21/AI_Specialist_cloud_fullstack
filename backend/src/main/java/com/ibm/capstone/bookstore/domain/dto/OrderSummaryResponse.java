@@ -20,6 +20,12 @@ public class OrderSummaryResponse {
     private LocalDate estimatedDeliveryDate;
     private Boolean canCancel;
     private Double hoursRemainingToCancel;
+    private BigDecimal refundedAmount = BigDecimal.ZERO;
+    private String shippingZone;
+    private String shipmentStatus;
+    private Boolean canModify = false;
+    private Boolean canReturn = false;
+    private LocalDate returnDeadline;
 
     public OrderSummaryResponse() {}
 
@@ -58,6 +64,24 @@ public class OrderSummaryResponse {
 
     public Boolean getCanCancel() { return canCancel; }
     public void setCanCancel(Boolean canCancel) { this.canCancel = canCancel; }
+
+    public BigDecimal getRefundedAmount() { return refundedAmount; }
+    public void setRefundedAmount(BigDecimal refundedAmount) { this.refundedAmount = refundedAmount; }
+
+    public String getShippingZone() { return shippingZone; }
+    public void setShippingZone(String shippingZone) { this.shippingZone = shippingZone; }
+
+    public String getShipmentStatus() { return shipmentStatus; }
+    public void setShipmentStatus(String shipmentStatus) { this.shipmentStatus = shipmentStatus; }
+
+    public Boolean getCanModify() { return canModify; }
+    public void setCanModify(Boolean canModify) { this.canModify = canModify; }
+
+    public Boolean getCanReturn() { return canReturn; }
+    public void setCanReturn(Boolean canReturn) { this.canReturn = canReturn; }
+
+    public LocalDate getReturnDeadline() { return returnDeadline; }
+    public void setReturnDeadline(LocalDate returnDeadline) { this.returnDeadline = returnDeadline; }
 
     public Double getHoursRemainingToCancel() { return hoursRemainingToCancel; }
     public void setHoursRemainingToCancel(Double hoursRemainingToCancel) { this.hoursRemainingToCancel = hoursRemainingToCancel; }
