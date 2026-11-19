@@ -1,5 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import Modal, { ModalHeader } from '../components/Modal';
+import TrackingModal from '../components/TrackingModal';
+import ModifyOrderModal from '../components/ModifyOrderModal';
+import ReturnModal from '../components/ReturnModal';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
@@ -24,12 +27,16 @@ export default function OrdersPage() {
   const [cancelOrder, setCancelOrder] = useState(null);
   const [reason, setReason] = useState(REASONS[0]);
   const [busy, setBusy] = useState(false);
+  const [trackOrder, setTrackOrder] = useState(null);
+  const [modifyOrder, setModifyOrder] = useState(null);
+  const [returnOrder, setReturnOrder] = useState(null);
+  const [returns, setReturns] = useState([]);
 
   const load = useCallback(() => {
     if (!user) return Promise.resolve();
     setError('');
-    return api.getOrderHistory()
-      .then((data) => setOrders(data || []))
+    return Promise.all([api.getOrderHistory(), api.getReturns().catch(() => [])])
+      .then(([data, rets]) => { setOrders(data || []); setReturns(rets || []); })
       .catch((err) => setError(err.message || 'Could not load your orders'));
   }, [user?.id]);
 
@@ -60,6 +67,25 @@ export default function OrdersPage() {
     }
   };
 
+  const afterChange = async () => {
+    setModifyOrder(null);
+    setReturnOrder(null);
+    await Promise.all([load(), refreshUser()]);
+  };
+
+  const withdraw = async (returnId) => {
+    setBusy(true);
+    try {
+      const res = await api.withdrawReturn(returnId);
+      toast.success(res.message);
+      await load();
+    } catch (err) {
+      toast.error(err.message || 'Could not withdraw this return');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const confirmCancel = async () => {
     setBusy(true);
     try {
@@ -77,7 +103,7 @@ export default function OrdersPage() {
   return (
     <section aria-labelledby="orders-title" className="max-w-3xl">
       <h1 id="orders-title" className="text-xl font-semibold mb-1">My Orders</h1>
-      <p className="text-xs text-fg3 mb-5">Cancel any order within 48 hours for a full refund. Use Buy it again to reorder in one click.</p>
+      <p className="text-xs text-fg3 mb-5">Cancel within 48 hours for a full refund, change an order before it ships, and return delivered books within the return window. Use Buy it again to reorder in one click.</p>
 
       {loading ? (
         <p className="text-sm text-fg3 py-12 text-center" role="status">Loading your orders...</p>
@@ -100,11 +126,16 @@ export default function OrdersPage() {
                   <span className="font-medium">{order.orderNumber}</span>
                   <span
                     className={`text-xs px-2 py-0.5 ${
-                      order.orderStatus === 'CANCELLED' ? 'bg-layer2 text-fg3' : 'bg-[#044317] text-[#a7f0ba]'
+                      order.orderStatus === 'CANCELLED' || order.orderStatus === 'RETURNED'
+                        ? 'bg-layer2 text-fg3'
+                        : 'bg-[#044317] text-[#a7f0ba]'
                     }`}
                   >
                     {order.orderStatus}
                   </span>
+                  {order.paymentStatus === 'PARTIALLY_REFUNDED' && (
+                    <span className="text-xs px-2 py-0.5 bg-layer2 text-fg2">Partly refunded</span>
+                  )}
                 </div>
                 <span className="text-xs text-fg3">{fullDate(order.createdAt)}</span>
               </div>
@@ -115,6 +146,10 @@ export default function OrdersPage() {
                 <div><dt className="text-xs text-fg3">Items</dt><dd>{order.itemCount}</dd></div>
                 <div><dt className="text-xs text-fg3">Points</dt><dd>+{order.pointsEarned} / −{order.pointsRedeemed}</dd></div>
               </dl>
+
+              {Number(order.refundedAmount) > 0 && (
+                <p className="text-sm text-fg2">{inr(order.refundedAmount)} refunded so far.</p>
+              )}
 
               {order.canCancel && (
                 <div className="flex flex-col min-[420px]:flex-row min-[420px]:items-center justify-between gap-2 text-sm bg-canvas px-3 py-2">
@@ -129,7 +164,39 @@ export default function OrdersPage() {
                 <p className="text-sm text-fg3">Cancelled. Refunded in full and redeemed points returned.</p>
               )}
 
-              <div className="flex justify-end">
+              {order.canReturn && order.returnDeadline && (
+                <p className="text-sm text-fg2">Delivered. You can return books until {fullDate(order.returnDeadline)}.</p>
+              )}
+
+              {returns.filter((r) => r.orderId === order.id).map((r) => (
+                <div key={r.id} className="text-sm bg-canvas px-3 py-2 space-y-1">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-fg">Return {r.rmaNumber}: <strong>{r.status.replace('_', ' ').toLowerCase()}</strong></span>
+                    {r.status === 'REQUESTED' && (
+                      <button onClick={() => withdraw(r.id)} disabled={busy} className="text-danger hover:underline">Withdraw</button>
+                    )}
+                  </div>
+                  <p className="text-xs text-fg3">
+                    {r.items.map((i) => `${i.quantity} × ${i.bookTitle}`).join(', ')}
+                    {r.status === 'REFUNDED'
+                      ? ` · ${inr(r.refundAmount)} refunded (${r.refundReference})`
+                      : r.status === 'REJECTED'
+                        ? (r.adminNote ? ` · ${r.adminNote}` : '')
+                        : ` · about ${inr(r.estimatedRefund)} once we receive it · collection ${r.returnTrackingNumber}`}
+                  </p>
+                </div>
+              ))}
+
+              <div className="flex flex-wrap justify-end gap-2">
+                {order.shipmentStatus && order.orderStatus !== 'CANCELLED' && (
+                  <button onClick={() => setTrackOrder(order)} className="btn-secondary w-full min-[420px]:w-auto">Track</button>
+                )}
+                {order.canModify && (
+                  <button onClick={() => setModifyOrder(order)} className="btn-secondary w-full min-[420px]:w-auto">Change order</button>
+                )}
+                {order.canReturn && (
+                  <button onClick={() => setReturnOrder(order)} className="btn-secondary w-full min-[420px]:w-auto">Return books</button>
+                )}
                 <button onClick={() => buyAgain(order.id)} disabled={busy} className="btn-primary w-full min-[420px]:w-auto">
                   Buy it again
                 </button>
@@ -138,6 +205,10 @@ export default function OrdersPage() {
           ))}
         </ul>
       )}
+
+      <TrackingModal order={trackOrder} onClose={() => setTrackOrder(null)} />
+      <ModifyOrderModal order={modifyOrder} onClose={() => setModifyOrder(null)} onDone={afterChange} />
+      <ReturnModal order={returnOrder} onClose={() => setReturnOrder(null)} onDone={afterChange} />
 
       <Modal open={!!cancelOrder} onClose={() => !busy && setCancelOrder(null)} title="Cancel order" size="sm" z={60}>
         <ModalHeader title={`Cancel order ${cancelOrder?.orderNumber || ''}?`} onClose={() => !busy && setCancelOrder(null)} />
