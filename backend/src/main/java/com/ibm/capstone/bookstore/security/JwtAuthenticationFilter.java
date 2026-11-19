@@ -19,10 +19,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtTokenProvider tokenProvider;
     private final CustomUserDetailsService userDetailsService;
+    private final TokenRevocationService revocationService;
 
-    public JwtAuthenticationFilter(JwtTokenProvider tokenProvider, CustomUserDetailsService userDetailsService) {
+    public JwtAuthenticationFilter(JwtTokenProvider tokenProvider,
+                                   CustomUserDetailsService userDetailsService,
+                                   TokenRevocationService revocationService) {
         this.tokenProvider = tokenProvider;
         this.userDetailsService = userDetailsService;
+        this.revocationService = revocationService;
     }
 
     @Override
@@ -31,7 +35,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                                     FilterChain filterChain) throws ServletException, IOException {
         String jwt = getJwtFromRequest(request);
 
-        if (StringUtils.hasText(jwt) && tokenProvider.validateToken(jwt)) {
+        // A signed-out token is treated exactly like a missing one: the caller is a guest.
+        if (StringUtils.hasText(jwt) && tokenProvider.validateToken(jwt)
+                && !revocationService.isRevoked(tokenProvider.getTokenId(jwt))) {
             String username = tokenProvider.getUsernameFromJwt(jwt);
             UserDetails userDetails = userDetailsService.loadUserByUsername(username);
 
