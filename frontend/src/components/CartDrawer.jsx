@@ -1,12 +1,26 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Trash2 } from 'lucide-react';
 import Modal, { ModalHeader } from './Modal';
 import BookCover from './BookCover';
+import SuggestionRail from './SuggestionRail';
+import { api } from '../api/client';
 import { useCart } from '../context/CartContext';
 import { inr } from '../lib/format';
 
-export default function CartDrawer({ onProceedToCheckout }) {
+export default function CartDrawer({ onProceedToCheckout, onOpenDetail }) {
   const { cart, isCartOpen, setIsCartOpen, updateQuantity, removeItem, clearCart } = useCart();
+  const [more, setMore] = useState([]);
+
+  // Books that go with what is in the basket. A failure here must never get in the way of checking out.
+  const basketKey = cart.items.map((i) => i.book.id).join(',');
+  useEffect(() => {
+    if (!isCartOpen || !basketKey) { setMore([]); return undefined; }
+    let cancelled = false;
+    api.getBasketSuggestions(basketKey.split(','), 3)
+      .then((r) => { if (!cancelled) setMore(r?.crossSell || []); })
+      .catch(() => { if (!cancelled) setMore([]); });
+    return () => { cancelled = true; };
+  }, [isCartOpen, basketKey]);
 
   const close = () => setIsCartOpen(false);
   const threshold = Number(cart.freeShippingThreshold) || 499;
@@ -64,6 +78,15 @@ export default function CartDrawer({ onProceedToCheckout }) {
               </div>
             </div>
           ))
+        )}
+
+        {cart.items.length > 0 && (
+          <SuggestionRail
+            title="You might also like"
+            hint="Picked to go with the books in your basket"
+            books={more}
+            onSelect={(b) => { close(); onOpenDetail?.(b); }}
+          />
         )}
       </div>
 

@@ -36,7 +36,7 @@ export default function CatalogPage({ filters, setFilters, onOpenDetail }) {
         setShelves(s);
       })
       .catch((err) => console.error('Failed to load store metadata', err));
-  }, []);
+  }, [user?.id]);
 
   useEffect(() => {
     if (!user) { setRecommendations([]); return; }
@@ -44,6 +44,12 @@ export default function CatalogPage({ filters, setFilters, onOpenDetail }) {
       .then((data) => setRecommendations(data || []))
       .catch((err) => console.error('Failed to load recommendations', err));
   }, [user?.id]);
+
+  useEffect(() => {
+    if (selectedCategory !== null && categories.length > 0 && !categories.some((c) => c.id === selectedCategory)) {
+      setSelectedCategory(null);
+    }
+  }, [categories, selectedCategory]);
 
   const isFiltering =
     !!filters.query || !!filters.language || !!filters.format || !!filters.price ||
@@ -72,7 +78,7 @@ export default function CatalogPage({ filters, setFilters, onOpenDetail }) {
   useEffect(() => {
     const timer = setTimeout(fetchBooks, 250);
     return () => clearTimeout(timer);
-  }, [fetchBooks]);
+  }, [fetchBooks, user?.id]);
 
   const reset = () => {
     setFilters(DEFAULT_FILTERS);

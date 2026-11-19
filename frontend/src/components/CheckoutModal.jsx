@@ -8,7 +8,7 @@ import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import { useToast } from '../context/ToastContext';
-import { deliveryBy, inr } from '../lib/format';
+import { deliveryBy, inr, shortDay } from '../lib/format';
 
 export default function CheckoutModal({ isOpen, onClose, onOrderSuccess, onOpenWallet }) {
   const { user, refreshUser } = useAuth();
@@ -62,11 +62,11 @@ export default function CheckoutModal({ isOpen, onClose, onOrderSuccess, onOpenW
   useEffect(() => {
     if (!isOpen || !user || cart.items.length === 0) return;
     let cancelled = false;
-    api.quoteOrder({ couponCode: appliedCoupon || null, pointsToRedeem: points })
+    api.quoteOrder({ couponCode: appliedCoupon || null, pointsToRedeem: points, addressId: selectedAddressId || null })
       .then((q) => { if (!cancelled) { setQuote(q); setQuoteError(''); } })
       .catch((err) => { if (!cancelled) setQuoteError(err.message || 'Could not price your order'); });
     return () => { cancelled = true; };
-  }, [isOpen, user?.id, cart, appliedCoupon, points]);
+  }, [isOpen, user?.id, cart, appliedCoupon, points, selectedAddressId]);
 
   const walletBalance = quote?.walletBalance ?? user?.walletBalance ?? 0;
   const payable = quote?.payable ?? cart.totalAmount;
@@ -77,7 +77,7 @@ export default function CheckoutModal({ isOpen, onClose, onOrderSuccess, onOpenW
     const code = couponInput.trim();
     if (!code) return setCouponError('Enter a coupon code');
     try {
-      const q = await api.quoteOrder({ couponCode: code, pointsToRedeem: points });
+      const q = await api.quoteOrder({ couponCode: code, pointsToRedeem: points, addressId: selectedAddressId || null });
       setQuote(q);
       setAppliedCoupon(q.couponCode);
       setCouponInput(q.couponCode);
@@ -320,7 +320,16 @@ export default function CheckoutModal({ isOpen, onClose, onOrderSuccess, onOpenW
                   )}
                   <div className="flex justify-between text-fg2"><dt>Tax (12%)</dt><dd>{inr(quote.tax)}</dd></div>
                   <div className="flex justify-between text-fg2">
-                    <dt>Delivery Charges</dt><dd>{quote.shippingFee === 0 ? 'Free' : inr(quote.shippingFee)}</dd>
+                    <dt>
+                      Delivery Charges
+                      {selectedAddressId && quote.shippingZone && (
+                        <span className="block text-[11px] text-fg3">
+                          {quote.shippingZone.charAt(0) + quote.shippingZone.slice(1).toLowerCase()} delivery
+                          {quote.estimatedDeliveryDate ? `, by ${shortDay(quote.estimatedDeliveryDate)}` : ''}
+                        </span>
+                      )}
+                    </dt>
+                    <dd>{quote.shippingFee === 0 ? 'Free' : inr(quote.shippingFee)}</dd>
                   </div>
                   {quote.pointsDiscount > 0 && (
                     <div className="flex justify-between text-ok"><dt>Gift points</dt><dd>−{inr(quote.pointsDiscount)}</dd></div>

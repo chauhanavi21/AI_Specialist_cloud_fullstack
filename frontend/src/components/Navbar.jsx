@@ -1,5 +1,5 @@
 import React from 'react';
-import { BookOpen, ShoppingBag, Gift, User, LogOut, Search, Wallet, Package, Heart, PenLine } from 'lucide-react';
+import { BookOpen, ShoppingBag, Gift, User, LogOut, Search, Wallet, Package, Heart, PenLine, ShieldCheck, ScrollText } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import { inr } from '../lib/format';
@@ -12,7 +12,7 @@ export default function Navbar({
   onOpenPoints,
   onOpenWallet,
 }) {
-  const { user, isAuthenticated, logout, openAuthModal } = useAuth();
+  const { user, isAuthenticated, isAdmin, logout, openAuthModal } = useAuth();
   const { cart, setIsCartOpen } = useCart();
 
   const links = [
@@ -20,6 +20,8 @@ export default function Navbar({
     { id: 'orders', label: 'My Orders' },
     { id: 'wishlist', label: 'My Wishlist' },
     { id: 'writers', label: 'My Writers' },
+    { id: 'policies', label: 'Policies' },
+    ...(isAdmin ? [{ id: 'admin', label: 'Admin' }] : []),
   ];
 
   // Signed-out visitors can open any page; account pages explain they need a sign-in.
@@ -139,12 +141,12 @@ export default function Navbar({
 
     <nav
       aria-label="Account pages"
-      className="sm:hidden fixed bottom-0 inset-x-0 z-30 bg-canvas border-t border-line grid grid-cols-4 pb-[env(safe-area-inset-bottom)]"
+      className="sm:hidden fixed bottom-0 inset-x-0 z-30 bg-canvas border-t border-line flex pb-[env(safe-area-inset-bottom)]"
     >
       <button
         onClick={() => { onNavigate('catalog'); window.scrollTo({ top: 0 }); }}
         aria-current={view === 'catalog' ? 'page' : undefined}
-        className={`py-2.5 text-xs flex flex-col items-center gap-1 ${view === 'catalog' ? 'text-fg border-t-2 border-brand -mt-px' : 'text-fg2'}`}
+        className={`flex-1 py-2.5 text-xs flex flex-col items-center gap-1 ${view === 'catalog' ? 'text-fg border-t-2 border-brand -mt-px' : 'text-fg2'}`}
       >
         <BookOpen className="w-5 h-5" aria-hidden="true" />
         Books
@@ -154,11 +156,13 @@ export default function Navbar({
           key={t.id}
           onClick={() => onNavigate(t.id)}
           aria-current={view === t.id ? 'page' : undefined}
-          className={`py-2.5 text-xs flex flex-col items-center gap-1 ${view === t.id ? 'text-fg border-t-2 border-brand -mt-px' : 'text-fg2'}`}
+          className={`flex-1 py-2.5 text-xs flex flex-col items-center gap-1 ${view === t.id ? 'text-fg border-t-2 border-brand -mt-px' : 'text-fg2'}`}
         >
           {t.id === 'orders' && <Package className="w-5 h-5" aria-hidden="true" />}
           {t.id === 'wishlist' && <Heart className="w-5 h-5" aria-hidden="true" />}
           {t.id === 'writers' && <PenLine className="w-5 h-5" aria-hidden="true" />}
+          {t.id === 'policies' && <ScrollText className="w-5 h-5" aria-hidden="true" />}
+          {t.id === 'admin' && <ShieldCheck className="w-5 h-5" aria-hidden="true" />}
           {t.label}
         </button>
       ))}
