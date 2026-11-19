@@ -3,6 +3,7 @@ import { Heart, Star, ShoppingCart, UserPlus, UserCheck } from 'lucide-react';
 import Modal, { ModalHeader } from './Modal';
 import BookCover from './BookCover';
 import StarRating from './StarRating';
+import SuggestionRail from './SuggestionRail';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
@@ -24,6 +25,7 @@ export default function BookDetailModal({ bookId, onClose, onSelectBook }) {
 
   const [book, setBook] = useState(null);
   const [related, setRelated] = useState([]);
+  const [suggestions, setSuggestions] = useState({ upsell: [], crossSell: [] });
   const [quantity, setQuantity] = useState(1);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -36,10 +38,11 @@ export default function BookDetailModal({ bookId, onClose, onSelectBook }) {
 
   const load = useCallback(() => {
     if (!bookId) return Promise.resolve();
-    return Promise.all([api.getBookById(bookId), api.getRelatedBooks(bookId, 3)])
-      .then(([detail, rel]) => {
+    return Promise.all([api.getBookById(bookId), api.getRelatedBooks(bookId, 3), api.getSuggestions(bookId, 3).catch(() => null)])
+      .then(([detail, rel, sug]) => {
         setBook(detail);
         setRelated(rel || []);
+        setSuggestions(sug || { upsell: [], crossSell: [] });
         setFollowing(!!detail.writer?.following);
         setLoadError('');
       })
@@ -310,6 +313,18 @@ export default function BookDetailModal({ bookId, onClose, onSelectBook }) {
                 ))}
               </ul>
             )}
+            <SuggestionRail
+              title="Consider this instead"
+              hint="A higher rated step up in the same category"
+              books={suggestions.upsell}
+              onSelect={onSelectBook}
+            />
+            <SuggestionRail
+              title="Goes well with"
+              hint="Readers often pair this with books from other topics"
+              books={suggestions.crossSell}
+              onSelect={onSelectBook}
+            />
             <p className="text-[11px] text-fg3 mt-6">{plural(book.reviewCount, 'review')} · {book.language}</p>
           </aside>
         </div>
