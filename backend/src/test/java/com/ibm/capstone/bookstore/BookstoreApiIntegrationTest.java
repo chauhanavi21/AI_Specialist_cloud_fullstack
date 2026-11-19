@@ -60,6 +60,18 @@ class BookstoreApiIntegrationTest {
     }
 
     @Test
+    @Order(0)
+    @DisplayName("Unknown routes and wrong methods return 404/405 instead of a 500")
+    void frameworkErrorsKeepTheirStatus() throws Exception {
+        ResponseEntity<String> unknown = rest.exchange(url("/no-such-route"), HttpMethod.GET, new HttpEntity<>(headers(false)), String.class);
+        assertTrue(unknown.getStatusCode().is4xxClientError(), "unknown route gave " + unknown.getStatusCode());
+        ResponseEntity<String> badBody = rest.exchange(url("/auth/login"), HttpMethod.POST, new HttpEntity<>("{not json", headers(false)), String.class);
+        assertEquals(HttpStatus.BAD_REQUEST, badBody.getStatusCode());
+        ResponseEntity<String> wrongMethod = rest.exchange(url("/auth/login"), HttpMethod.GET, new HttpEntity<>(headers(false)), String.class);
+        assertEquals(HttpStatus.METHOD_NOT_ALLOWED, wrongMethod.getStatusCode());
+    }
+
+    @Test
     @Order(1)
     @DisplayName("Catalog is public and the language, format, price and sort filters work")
     void catalogFilters() throws Exception {

@@ -96,6 +96,30 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(err);
     }
 
+    /** Spring's own web errors (unknown route 404, wrong method 405, bad media type 415, missing parameter 400) keep their real status. */
+    @ExceptionHandler({org.springframework.web.HttpRequestMethodNotSupportedException.class,
+            org.springframework.web.HttpMediaTypeNotSupportedException.class,
+            org.springframework.web.HttpMediaTypeNotAcceptableException.class,
+            org.springframework.web.bind.MissingServletRequestParameterException.class,
+            org.springframework.web.servlet.resource.NoResourceFoundException.class,
+            org.springframework.web.servlet.NoHandlerFoundException.class})
+    public ResponseEntity<ErrorResponse> handleFrameworkError(Exception e, HttpServletRequest request) {
+        org.springframework.web.ErrorResponse ex = (org.springframework.web.ErrorResponse) e;
+        HttpStatus status = HttpStatus.valueOf(ex.getStatusCode().value());
+        log.warn("{} on {}: {}", status, request.getRequestURI(), ex.getBody().getDetail());
+        return ResponseEntity.status(status)
+                .body(new ErrorResponse(status.value(), status.getReasonPhrase(), ex.getBody().getDetail(), request.getRequestURI()));
+    }
+
+    @ExceptionHandler({org.springframework.http.converter.HttpMessageNotReadableException.class,
+            org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class})
+    public ResponseEntity<ErrorResponse> handleUnreadable(Exception ex, HttpServletRequest request) {
+        log.warn("Unreadable request on {}: {}", request.getRequestURI(), ex.getMessage());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ErrorResponse(
+                HttpStatus.BAD_REQUEST.value(), "Bad Request",
+                "The request body or a parameter could not be read. Check the format and try again.", request.getRequestURI()));
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleGenericException(Exception ex, HttpServletRequest request) {
         log.error("Internal system error on {}: {}", request.getRequestURI(), ex.getMessage(), ex);
