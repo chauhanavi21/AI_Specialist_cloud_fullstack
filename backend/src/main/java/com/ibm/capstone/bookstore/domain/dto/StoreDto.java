@@ -43,13 +43,14 @@ public final class StoreDto {
 
     public record CouponResponse(String code, String description, BigDecimal discount) {}
 
-    public record QuoteRequest(String couponCode, Integer pointsToRedeem, String paymentMethod) {}
+    public record QuoteRequest(String couponCode, Integer pointsToRedeem, String paymentMethod, Long addressId) {}
 
     /** What the customer will actually pay, priced by the same code that places the order. */
     public record QuoteResponse(BigDecimal subtotal, BigDecimal couponDiscount, String couponCode,
                                 BigDecimal tax, BigDecimal shippingFee, BigDecimal pointsDiscount,
                                 int pointsApplied, int maxPoints, BigDecimal payable,
-                                int pointsToEarn, BigDecimal walletBalance, boolean walletCoversTotal) {}
+                                int pointsToEarn, BigDecimal walletBalance, boolean walletCoversTotal,
+                                String shippingZone, java.time.LocalDate estimatedDeliveryDate) {}
 
     public record FacetsResponse(List<String> languages, List<String> formats) {}
 

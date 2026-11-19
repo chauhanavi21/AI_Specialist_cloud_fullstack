@@ -12,6 +12,10 @@ import com.ibm.capstone.bookstore.service.GiftPointsService;
 import com.ibm.capstone.bookstore.service.OrderService;
 import com.ibm.capstone.bookstore.service.PaymentGateway;
 import com.ibm.capstone.bookstore.service.PricingCalculator;
+import com.ibm.capstone.bookstore.service.RefundCalculator;
+import com.ibm.capstone.bookstore.service.RefundProcessor;
+import com.ibm.capstone.bookstore.service.ReturnPolicy;
+import com.ibm.capstone.bookstore.service.ShippingCalculator;
 import com.ibm.capstone.bookstore.service.WalletService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -23,6 +27,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 
@@ -40,9 +45,17 @@ public class OrderServiceImpl implements OrderService {
     private final CouponService couponService;
     private final WalletService walletService;
     private final PaymentGateway paymentGateway;
+    private final ShippingCalculator shippingCalculator;
+    private final ShipmentRepository shipmentRepository;
+    private final RefundCalculator refundCalculator;
+    private final RefundProcessor refundProcessor;
+    private final ReturnPolicy returnPolicy;
 
     @Value("${app.orders.cancellation-window-hours:48}")
     private long cancellationWindowHours = 48;
+
+    @Value("${app.orders.modification-window-hours:24}")
+    private long modificationWindowHours = 24;
 
     public OrderServiceImpl(OrderRepository orderRepository,
                             CartRepository cartRepository,
@@ -54,7 +67,12 @@ public class OrderServiceImpl implements OrderService {
                             PricingCalculator pricing,
                             CouponService couponService,
                             WalletService walletService,
-                            PaymentGateway paymentGateway) {
+                            PaymentGateway paymentGateway,
+                            ShippingCalculator shippingCalculator,
+                            ShipmentRepository shipmentRepository,
+                            RefundCalculator refundCalculator,
+                            RefundProcessor refundProcessor,
+                            ReturnPolicy returnPolicy) {
         this.orderRepository = orderRepository;
         this.cartRepository = cartRepository;
         this.addressRepository = addressRepository;
@@ -66,7 +84,16 @@ public class OrderServiceImpl implements OrderService {
         this.couponService = couponService;
         this.walletService = walletService;
         this.paymentGateway = paymentGateway;
+        this.shippingCalculator = shippingCalculator;
+        this.shipmentRepository = shipmentRepository;
+        this.refundCalculator = refundCalculator;
+        this.refundProcessor = refundProcessor;
+        this.returnPolicy = returnPolicy;
     }
+
+    // =====================================================================================
+    // Placing an order
+    // =====================================================================================
 
     @Override
     @Transactional
@@ -103,7 +130,8 @@ public class OrderServiceImpl implements OrderService {
             coupon = couponService.requireApplicable(request.getCouponCode(), subtotal);
             couponDiscount = coupon.discountFor(subtotal);
         }
-        PricingCalculator.Breakdown price = pricing.price(subtotal, couponDiscount);
+        ShippingZone zone = shippingCalculator.zoneFor(address);
+        PricingCalculator.Breakdown price = pricing.price(subtotal, couponDiscount, zone);
 
         // 3. Gift points redemption.
         int pointsToRedeem = request.getPointsToRedeem() != null ? request.getPointsToRedeem() : 0;
@@ -165,6 +193,7 @@ public class OrderServiceImpl implements OrderService {
         order.setCouponDiscount(couponDiscount);
         order.setTax(price.tax());
         order.setShippingFee(price.shippingFee());
+        order.setShippingZone(zone);
         order.setPointsRedeemed(pointsToRedeem);
         order.setPointsDiscount(pointsDiscount);
         order.setPointsEarned(pointsEarned);
@@ -174,10 +203,10 @@ public class OrderServiceImpl implements OrderService {
         order.setCardLast4(cardLast4);
         order.setPaymentReference(paymentReference);
 
-        int maxDeliveryDays = cart.getItems().stream()
+        int slowestBookDays = cart.getItems().stream()
                 .mapToInt(i -> i.getBook().getTentativeDeliveryDays())
                 .max().orElse(2);
-        order.setEstimatedDeliveryDate(LocalDate.now().plusDays(maxDeliveryDays));
+        order.setEstimatedDeliveryDate(shippingCalculator.deliveryDate(slowestBookDays, zone));
 
         for (CartItem item : cart.getItems()) {
             OrderItem orderItem = new OrderItem();
@@ -194,7 +223,18 @@ public class OrderServiceImpl implements OrderService {
 
         Order savedOrder = orderRepository.save(order);
 
-        // 6. Ledgers.
+        // 6. The outbound shipment: carrier and tracking number are assigned at purchase.
+        Shipment shipment = new Shipment();
+        shipment.setOrder(savedOrder);
+        shipment.setCarrier(shippingCalculator.carrierFor(zone));
+        shipment.setTrackingNumber(newTrackingNumber(zone));
+        shipment.setStatus(ShipmentStatus.PROCESSING);
+        shipment.setShippingZone(zone);
+        shipment.setShippingFee(price.shippingFee());
+        shipment.setEstimatedDeliveryDate(savedOrder.getEstimatedDeliveryDate());
+        shipmentRepository.save(shipment);
+
+        // 7. Ledgers.
         if (walletAmountUsed.signum() > 0) {
             walletService.debit(user, walletAmountUsed, savedOrder.getId(), "Paid for order " + savedOrder.getOrderNumber());
         }
@@ -207,13 +247,26 @@ public class OrderServiceImpl implements OrderService {
                     PointsTransactionType.EARNED, "Earned from Order #" + savedOrder.getOrderNumber());
         }
 
-        // 7. Clear the cart.
+        // 8. Clear the cart.
         cartService.clearCart(userId);
 
         OrderConfirmationResponse response = baseResponse(savedOrder, user);
         response.setMessage("Payment successful and order confirmed! Your books are being prepared for dispatch.");
         return response;
     }
+
+    private static String newTrackingNumber(ShippingZone zone) {
+        String prefix = switch (zone) {
+            case LOCAL -> "DZ";
+            case REGIONAL -> "BD";
+            case NATIONAL -> "DL";
+        };
+        return prefix + "-" + UUID.randomUUID().toString().replace("-", "").substring(0, 10).toUpperCase();
+    }
+
+    // =====================================================================================
+    // Quote
+    // =====================================================================================
 
     @Override
     @Transactional(readOnly = true)
@@ -236,7 +289,17 @@ public class OrderServiceImpl implements OrderService {
             coupon = couponService.requireApplicable(request.couponCode(), subtotal);
             couponDiscount = coupon.discountFor(subtotal);
         }
-        PricingCalculator.Breakdown price = pricing.price(subtotal, couponDiscount);
+
+        // With an address the delivery charge and date depend on the zone; without one the basket assumes regional delivery.
+        Address address = request != null && request.addressId() != null
+                ? addressRepository.findByIdAndUserId(request.addressId(), userId)
+                        .orElseThrow(() -> new ResourceNotFoundException("Address not found: " + request.addressId()))
+                : null;
+        ShippingZone zone = shippingCalculator.zoneFor(address);
+        PricingCalculator.Breakdown price = pricing.price(subtotal, couponDiscount, zone);
+
+        int slowestBookDays = cart.getItems().stream()
+                .mapToInt(i -> i.getBook().getTentativeDeliveryDays()).max().orElse(2);
 
         int maxPoints = Math.min(user.getGiftPointsBalance(), pricing.pointsNeededFor(price.grossTotal()));
         int requested = request != null && request.pointsToRedeem() != null ? Math.max(0, request.pointsToRedeem()) : 0;
@@ -248,8 +311,13 @@ public class OrderServiceImpl implements OrderService {
                 subtotal, couponDiscount, coupon != null ? coupon.getCode() : null,
                 price.tax(), price.shippingFee(), pointsDiscount, pointsApplied, maxPoints,
                 payable, pricing.pointsEarned(payable), user.getWalletBalance(),
-                user.getWalletBalance().compareTo(payable) >= 0);
+                user.getWalletBalance().compareTo(payable) >= 0,
+                zone.name(), shippingCalculator.deliveryDate(slowestBookDays, zone));
     }
+
+    // =====================================================================================
+    // Reading orders
+    // =====================================================================================
 
     @Override
     @Transactional(readOnly = true)
@@ -267,6 +335,10 @@ public class OrderServiceImpl implements OrderService {
         return mapToOrderDetail(order);
     }
 
+    // =====================================================================================
+    // Cancelling (inside the cancellation window, before the parcel ships)
+    // =====================================================================================
+
     @Override
     @Transactional
     public OrderConfirmationResponse cancelOrder(Long userId, Long orderId, CancelOrderRequest request) {
@@ -278,7 +350,8 @@ public class OrderServiceImpl implements OrderService {
         }
 
         if (order.getOrderStatus() != OrderStatus.CONFIRMED && order.getOrderStatus() != OrderStatus.PROCESSING) {
-            throw new OrderCancellationException("Order #" + order.getOrderNumber() + " cannot be cancelled because it has already shipped or completed.");
+            throw new OrderCancellationException("Order #" + order.getOrderNumber() + " cannot be cancelled because it has already shipped or completed. "
+                    + "Once it is delivered you can return it instead.");
         }
 
         // 48-hour business constraint
@@ -287,50 +360,143 @@ public class OrderServiceImpl implements OrderService {
             throw new OrderCancellationException("Cancellation window expired. Orders can only be cancelled within " + cancellationWindowHours + " hours of purchase.");
         }
 
-        // 1. Mark cancelled and refunded
+        // Refund only what is still outstanding: part of the order may already have been refunded by an edit.
+        int[] units = new int[order.getItems().size()];
+        for (int i = 0; i < units.length; i++) {
+            units[i] = order.getItems().get(i).remainingQuantity();
+        }
+        RefundCalculator.Refund refund = refundCalculator.refund(order, units, true);
+        refundProcessor.apply(order, refund, units, true, "cancelled Order #" + order.getOrderNumber());
+
         order.setOrderStatus(OrderStatus.CANCELLED);
-        order.setPaymentStatus(PaymentStatus.REFUNDED);
         order.setCancelledAt(LocalDateTime.now());
         order.setCancelReason(request != null && request.getReason() != null ? request.getReason() : "Customer cancelled within 48 hours");
 
-        // 2. Restore stock
-        for (OrderItem item : order.getItems()) {
-            if (item.getBook() != null) {
-                Book book = item.getBook();
-                book.setStockQuantity(book.getStockQuantity() + item.getQuantity());
-                book.setCopiesSold(Math.max(0, book.getCopiesSold() - item.getQuantity()));
-                bookRepository.save(book);
-            }
-        }
-
-        // 3. Restore redeemed points, revoke earned points, return wallet money
-        User user = order.getUser();
-        if (order.getPointsRedeemed() > 0) {
-            user.setGiftPointsBalance(user.getGiftPointsBalance() + order.getPointsRedeemed());
-            giftPointsService.recordTransaction(user, order.getId(), order.getPointsRedeemed(),
-                    PointsTransactionType.REFUNDED, "Refunded points from cancelled Order #" + order.getOrderNumber());
-        }
-        if (order.getPointsEarned() > 0) {
-            int revoked = Math.min(order.getPointsEarned(), user.getGiftPointsBalance());
-            user.setGiftPointsBalance(user.getGiftPointsBalance() - revoked);
-            if (revoked > 0) {
-                giftPointsService.recordTransaction(user, order.getId(), revoked,
-                        PointsTransactionType.REVOKED, "Points reversed for cancelled Order #" + order.getOrderNumber());
-            }
-        }
-        userRepository.save(user);
-
-        if (order.getWalletAmountUsed() != null && order.getWalletAmountUsed().signum() > 0) {
-            walletService.credit(user, order.getWalletAmountUsed(), order.getId(),
-                    "Refund for cancelled Order #" + order.getOrderNumber());
-        }
+        shipmentRepository.findByOrderId(order.getId()).ifPresent(s -> {
+            s.setStatus(ShipmentStatus.CANCELLED);
+            shipmentRepository.save(s);
+        });
 
         Order savedOrder = orderRepository.save(order);
 
-        OrderConfirmationResponse response = baseResponse(savedOrder, user);
+        OrderConfirmationResponse response = baseResponse(savedOrder, order.getUser());
         response.setMessage("Order #" + savedOrder.getOrderNumber() + " cancelled successfully. Full refund initiated and points restored.");
         return response;
     }
+
+    // =====================================================================================
+    // Modifying an order (change the address, or take books off)
+    // =====================================================================================
+
+    @Override
+    @Transactional
+    public OrderConfirmationResponse modifyOrder(Long userId, Long orderId, LifecycleDto.ModifyOrderRequest request) {
+        Order order = orderRepository.findByIdAndUserId(orderId, userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Order not found with id: " + orderId));
+
+        boolean removing = request != null && request.removeItems() != null && !request.removeItems().isEmpty();
+        boolean moving = request != null && request.addressId() != null;
+        if (!removing && !moving) {
+            throw new BadRequestException("Choose a new delivery address or the books to remove.");
+        }
+        requireModifiable(order);
+
+        if (moving) {
+            changeAddress(order, userId, request.addressId());
+        }
+
+        String message = "Order #" + order.getOrderNumber() + " updated.";
+        if (removing) {
+            message = removeItems(order, request.removeItems());
+        }
+        order.setModifiedAt(LocalDateTime.now());
+        Order saved = orderRepository.save(order);
+
+        OrderConfirmationResponse response = baseResponse(saved, order.getUser());
+        response.setMessage(message);
+        return response;
+    }
+
+    private void requireModifiable(Order order) {
+        if (order.getOrderStatus() != OrderStatus.CONFIRMED && order.getOrderStatus() != OrderStatus.PROCESSING) {
+            throw new BadRequestException("Order #" + order.getOrderNumber() + " can no longer be changed because it is "
+                    + order.getOrderStatus().name().toLowerCase() + ".");
+        }
+        Duration age = Duration.between(order.getCreatedAt(), LocalDateTime.now());
+        if (age.toHours() >= modificationWindowHours) {
+            throw new BadRequestException("Orders can only be changed within " + modificationWindowHours
+                    + " hours of purchase, before they ship.");
+        }
+        shipmentRepository.findByOrderId(order.getId()).ifPresent(s -> {
+            if (s.getStatus() != ShipmentStatus.PROCESSING) {
+                throw new BadRequestException("Order #" + order.getOrderNumber() + " has already been handed to the carrier.");
+            }
+        });
+    }
+
+    /** Moving the parcel to another address changes the delivery date but not what was already paid for delivery. */
+    private void changeAddress(Order order, Long userId, Long addressId) {
+        Address address = addressRepository.findByIdAndUserId(addressId, userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Address not found: " + addressId));
+        ShippingZone newZone = shippingCalculator.zoneFor(address);
+        if (newZone != order.getShippingZone() && newZone.ordinal() > order.getShippingZone().ordinal()) {
+            throw new BadRequestException("That address is in a farther delivery zone than the one you paid for ("
+                    + order.getShippingZone().name().toLowerCase() + "). Place a new order for it instead.");
+        }
+        order.setDeliveryAddress(address);
+        int slowestBookDays = order.getItems().stream()
+                .filter(i -> i.remainingQuantity() > 0 && i.getBook() != null)
+                .mapToInt(i -> i.getBook().getTentativeDeliveryDays()).max().orElse(2);
+        order.setShippingZone(newZone);
+        order.setEstimatedDeliveryDate(shippingCalculator.deliveryDate(slowestBookDays, newZone));
+        shipmentRepository.findByOrderId(order.getId()).ifPresent(s -> {
+            s.setShippingZone(newZone);
+            s.setCarrier(shippingCalculator.carrierFor(newZone));
+            s.setEstimatedDeliveryDate(order.getEstimatedDeliveryDate());
+            shipmentRepository.save(s);
+        });
+    }
+
+    private String removeItems(Order order, List<LifecycleDto.ItemRemoval> removals) {
+        int[] units = new int[order.getItems().size()];
+        for (LifecycleDto.ItemRemoval removal : removals) {
+            int index = indexOfItem(order, removal.orderItemId());
+            OrderItem item = order.getItems().get(index);
+            units[index] += removal.quantity();
+            if (units[index] > item.remainingQuantity()) {
+                throw new BadRequestException("You can remove at most " + item.remainingQuantity() + " of '" + item.getBookTitle() + "'.");
+            }
+        }
+
+        boolean allGone = true;
+        for (int i = 0; i < units.length; i++) {
+            if (order.getItems().get(i).remainingQuantity() - units[i] > 0) {
+                allGone = false;
+                break;
+            }
+        }
+        if (allGone) {
+            throw new BadRequestException("That would remove every book. Cancel the order instead.");
+        }
+
+        RefundCalculator.Refund refund = refundCalculator.refund(order, units, false);
+        refundProcessor.apply(order, refund, units, true, "changes to Order #" + order.getOrderNumber());
+        return "Removed the books from Order #" + order.getOrderNumber() + ". ₹" + refund.cashBack().toPlainString()
+                + " refunded" + (refund.pointsBack() > 0 ? " and " + refund.pointsBack() + " points returned." : ".");
+    }
+
+    private static int indexOfItem(Order order, Long orderItemId) {
+        for (int i = 0; i < order.getItems().size(); i++) {
+            if (order.getItems().get(i).getId() != null && order.getItems().get(i).getId().equals(orderItemId)) {
+                return i;
+            }
+        }
+        throw new ResourceNotFoundException("Order item not found: " + orderItemId);
+    }
+
+    // =====================================================================================
+    // Buy It Again
+    // =====================================================================================
 
     @Override
     @Transactional
@@ -349,6 +515,10 @@ public class OrderServiceImpl implements OrderService {
 
         return cartService.getCartByUserId(userId);
     }
+
+    // =====================================================================================
+    // Mapping
+    // =====================================================================================
 
     private OrderConfirmationResponse baseResponse(Order order, User user) {
         OrderConfirmationResponse response = new OrderConfirmationResponse();
@@ -378,14 +548,25 @@ public class OrderServiceImpl implements OrderService {
         dto.setPointsRedeemed(order.getPointsRedeemed());
         dto.setPointsDiscount(order.getPointsDiscount());
         dto.setPointsEarned(order.getPointsEarned());
-        dto.setItemCount(order.getItems().stream().mapToInt(OrderItem::getQuantity).sum());
+        dto.setItemCount(order.getItems().stream().mapToInt(OrderItem::remainingQuantity).sum());
         dto.setCreatedAt(order.getCreatedAt());
         dto.setEstimatedDeliveryDate(order.getEstimatedDeliveryDate());
+        dto.setRefundedAmount(order.getRefundedAmount());
+        dto.setShippingZone(order.getShippingZone() != null ? order.getShippingZone().name() : null);
+
+        Shipment shipment = shipmentRepository.findByOrderId(order.getId()).orElse(null);
+        dto.setShipmentStatus(shipment != null ? shipment.getStatus().name() : null);
 
         Duration age = Duration.between(order.getCreatedAt(), LocalDateTime.now());
-        boolean eligible = (order.getOrderStatus() == OrderStatus.CONFIRMED || order.getOrderStatus() == OrderStatus.PROCESSING)
-                && age.toHours() < cancellationWindowHours;
-        dto.setCanCancel(eligible);
+        boolean open = order.getOrderStatus() == OrderStatus.CONFIRMED || order.getOrderStatus() == OrderStatus.PROCESSING;
+        dto.setCanCancel(open && age.toHours() < cancellationWindowHours);
+        dto.setCanModify(open && age.toHours() < modificationWindowHours
+                && (shipment == null || shipment.getStatus() == ShipmentStatus.PROCESSING)
+                && order.getItems().stream().mapToInt(OrderItem::remainingQuantity).sum() > 1);
+
+        returnPolicy.deadline(shipment).ifPresent(dto::setReturnDeadline);
+        dto.setCanReturn(returnPolicy.blocker(order, shipment).isEmpty()
+                && order.getItems().stream().anyMatch(i -> i.remainingQuantity() > 0));
 
         double hoursRemaining = Math.max(0.0, cancellationWindowHours - (age.toMinutes() / 60.0));
         dto.setHoursRemainingToCancel(Math.round(hoursRemaining * 10.0) / 10.0);
@@ -412,6 +593,10 @@ public class OrderServiceImpl implements OrderService {
         dto.setWalletAmountUsed(order.getWalletAmountUsed());
         dto.setPaymentReference(order.getPaymentReference());
         dto.setCancelReason(order.getCancelReason());
+        shipmentRepository.findByOrderId(order.getId()).ifPresent(s -> {
+            dto.setCarrier(s.getCarrier());
+            dto.setTrackingNumber(s.getTrackingNumber());
+        });
         dto.setItems(order.getItems().stream().map(OrderConfirmationResponse::itemFrom).collect(Collectors.toList()));
         return dto;
     }

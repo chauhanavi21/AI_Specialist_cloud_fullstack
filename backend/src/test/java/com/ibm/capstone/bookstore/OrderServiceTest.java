@@ -13,6 +13,10 @@ import com.ibm.capstone.bookstore.service.CouponService;
 import com.ibm.capstone.bookstore.service.GiftPointsService;
 import com.ibm.capstone.bookstore.service.PaymentGateway;
 import com.ibm.capstone.bookstore.service.PricingCalculator;
+import com.ibm.capstone.bookstore.service.RefundCalculator;
+import com.ibm.capstone.bookstore.service.RefundProcessor;
+import com.ibm.capstone.bookstore.service.ReturnPolicy;
+import com.ibm.capstone.bookstore.service.ShippingCalculator;
 import com.ibm.capstone.bookstore.service.WalletService;
 import com.ibm.capstone.bookstore.service.impl.OrderServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
@@ -46,6 +50,8 @@ public class OrderServiceTest {
     @Mock private CartService cartService;
     @Mock private CouponRepository couponRepository;
     @Mock private WalletService walletService;
+    @Mock private ShipmentRepository shipmentRepository;
+    @Mock private StoreRepository storeRepository;
 
     private OrderServiceImpl orderService;
     private User testUser;
@@ -60,11 +66,16 @@ public class OrderServiceTest {
 
     @BeforeEach
     void setUp() {
-        PricingCalculator pricing = new PricingCalculator(new PricingProperties());
+        PricingProperties props = new PricingProperties();
+        PricingCalculator pricing = new PricingCalculator(props);
+        RefundProcessor refundProcessor = new RefundProcessor(bookRepository, userRepository, giftPointsService, walletService);
         orderService = new OrderServiceImpl(orderRepository, cartRepository, addressRepository, userRepository,
                 bookRepository, giftPointsService, cartService, pricing,
-                new CouponService(couponRepository), walletService, new PaymentGateway());
+                new CouponService(couponRepository), walletService, new PaymentGateway(),
+                new ShippingCalculator(props), shipmentRepository,
+                new RefundCalculator(pricing), refundProcessor, new ReturnPolicy(storeRepository));
         ReflectionTestUtils.setField(orderService, "cancellationWindowHours", 48L);
+        ReflectionTestUtils.setField(orderService, "modificationWindowHours", 24L);
 
         testUser = new User("alex.dev@ibm.com", "hashedpass", "Alex Rivera", "+91 98100 00144");
         testUser.setId(1L);
@@ -102,6 +113,7 @@ public class OrderServiceTest {
         testOrder.setDeliveryAddress(testAddress);
         testOrder.setOrderStatus(OrderStatus.CONFIRMED);
         testOrder.setPaymentStatus(PaymentStatus.PAID);
+        testOrder.setShippingZone(ShippingZone.REGIONAL);
         testOrder.setSubtotal(bd("899.00"));
         testOrder.setTax(bd("107.88"));
         testOrder.setShippingFee(BigDecimal.ZERO);

@@ -5,5 +5,7 @@ public enum OrderStatus {
     PROCESSING,
     SHIPPED,
     DELIVERED,
-    CANCELLED
+    CANCELLED,
+    /** Every book on the order has been returned and refunded. */
+    RETURNED
 }

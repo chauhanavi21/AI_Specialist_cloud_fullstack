@@ -88,6 +88,23 @@ public class Order {
     @Column(name = "cancel_reason", columnDefinition = "TEXT")
     private String cancelReason;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "shipping_zone", length = 30)
+    private ShippingZone shippingZone;
+
+    /** Cash refunded so far: partial refunds from edits and returns, or the final cancellation refund. */
+    @Column(name = "refunded_amount", nullable = false, precision = 10, scale = 2)
+    private BigDecimal refundedAmount = BigDecimal.ZERO;
+
+    @Column(name = "points_refunded", nullable = false)
+    private Integer pointsRefunded = 0;
+
+    @Column(name = "points_revoked", nullable = false)
+    private Integer pointsRevoked = 0;
+
+    @Column(name = "modified_at")
+    private LocalDateTime modifiedAt;
+
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<OrderItem> items = new ArrayList<>();
 
@@ -161,6 +178,21 @@ public class Order {
 
     public String getCancelReason() { return cancelReason; }
     public void setCancelReason(String cancelReason) { this.cancelReason = cancelReason; }
+
+    public ShippingZone getShippingZone() { return shippingZone; }
+    public void setShippingZone(ShippingZone shippingZone) { this.shippingZone = shippingZone; }
+
+    public BigDecimal getRefundedAmount() { return refundedAmount; }
+    public void setRefundedAmount(BigDecimal refundedAmount) { this.refundedAmount = refundedAmount; }
+
+    public Integer getPointsRefunded() { return pointsRefunded; }
+    public void setPointsRefunded(Integer pointsRefunded) { this.pointsRefunded = pointsRefunded; }
+
+    public Integer getPointsRevoked() { return pointsRevoked; }
+    public void setPointsRevoked(Integer pointsRevoked) { this.pointsRevoked = pointsRevoked; }
+
+    public LocalDateTime getModifiedAt() { return modifiedAt; }
+    public void setModifiedAt(LocalDateTime modifiedAt) { this.modifiedAt = modifiedAt; }
 
     public List<OrderItem> getItems() { return items; }
     public void setItems(List<OrderItem> items) { this.items = items; }

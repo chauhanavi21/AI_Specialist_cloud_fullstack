@@ -9,4 +9,7 @@ public interface AuthService {
     AuthResponse register(RegisterRequest request);
     AuthResponse login(LoginRequest request);
     UserProfileResponse getCurrentUser(Long userId);
+
+    /** Signs the caller out: the presented token is revoked until it would have expired. */
+    void logout(String token);
 }

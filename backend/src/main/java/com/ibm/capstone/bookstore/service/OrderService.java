@@ -10,5 +10,7 @@ public interface OrderService {
     List<OrderSummaryResponse> getOrderHistory(Long userId);
     OrderDetailResponse getOrderById(Long userId, Long orderId);
     OrderConfirmationResponse cancelOrder(Long userId, Long orderId, CancelOrderRequest request);
+    /** Changes the delivery address and/or takes books off an order that has not shipped; removed books are refunded. */
+    OrderConfirmationResponse modifyOrder(Long userId, Long orderId, LifecycleDto.ModifyOrderRequest request);
     CartResponse buyItAgain(Long userId, Long orderId);
 }

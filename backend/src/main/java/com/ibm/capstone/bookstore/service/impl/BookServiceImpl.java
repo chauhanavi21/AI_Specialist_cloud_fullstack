@@ -12,6 +12,7 @@ import com.ibm.capstone.bookstore.repository.CategoryRepository;
 import com.ibm.capstone.bookstore.repository.PublisherRepository;
 import com.ibm.capstone.bookstore.repository.ReviewRepository;
 import com.ibm.capstone.bookstore.repository.WishlistRepository;
+import com.ibm.capstone.bookstore.security.Entitlements;
 import com.ibm.capstone.bookstore.service.BookService;
 import jakarta.persistence.criteria.Predicate;
 import org.springframework.data.domain.Page;
@@ -55,7 +56,9 @@ public class BookServiceImpl implements BookService {
     @Override
     @Transactional(readOnly = true)
     public List<CategoryResponse> getAllCategories() {
+        List<String> visible = Entitlements.visibleCategories();
         return categoryRepository.findAll().stream()
+                .filter(c -> visible.contains(c.getVisibility()))
                 .map(this::mapToCategoryResponse)
                 .collect(Collectors.toList());
     }
@@ -71,7 +74,8 @@ public class BookServiceImpl implements BookService {
     @Override
     @Transactional(readOnly = true)
     public StoreDto.FacetsResponse getFacets() {
-        return new StoreDto.FacetsResponse(bookRepository.findDistinctLanguages(), bookRepository.findDistinctFormats());
+        List<String> visible = Entitlements.visibleCategories();
+        return new StoreDto.FacetsResponse(bookRepository.findDistinctLanguages(visible), bookRepository.findDistinctFormats(visible));
     }
 
     @Override
@@ -111,8 +115,11 @@ public class BookServiceImpl implements BookService {
     private Specification<Book> filters(String query, Long categoryId, Long publisherId,
                                         String language, String format,
                                         BigDecimal minPrice, BigDecimal maxPrice) {
+        List<String> visible = Entitlements.visibleCategories();
         return (root, cq, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
+            // Entitlement: guests never see books in members-only categories
+            predicates.add(root.get("category").get("visibility").in(visible));
             if (query != null && !query.isBlank()) {
                 String like = "%" + query.trim().toLowerCase() + "%";
                 predicates.add(cb.or(
@@ -141,7 +148,9 @@ public class BookServiceImpl implements BookService {
     }
 
     private List<BookSummaryResponse> shelf(Sort sort, int size) {
-        return bookRepository.findAll(PageRequest.of(0, size, sort)).getContent().stream()
+        List<String> visible = Entitlements.visibleCategories();
+        Specification<Book> spec = (root, cq, cb) -> root.get("category").get("visibility").in(visible);
+        return bookRepository.findAll(spec, PageRequest.of(0, size, sort)).getContent().stream()
                 .map(this::mapToBookSummary)
                 .collect(Collectors.toList());
     }
@@ -149,7 +158,17 @@ public class BookServiceImpl implements BookService {
     @Override
     @Transactional(readOnly = true)
     public BookDetailResponse getBookById(Long id, Long userId) {
+        return getBookById(id, userId, false);
+    }
+
+    /**
+     * @param includeHidden true only for administrators, who may open books in members-only categories
+     *                      regardless of who is asking (for example to see the book they have just created).
+     */
+    @Transactional(readOnly = true)
+    public BookDetailResponse getBookById(Long id, Long userId, boolean includeHidden) {
         Book book = bookRepository.findById(id)
+                .filter(b -> includeHidden || Entitlements.visibleCategories().contains(b.getCategory().getVisibility()))
                 .orElseThrow(() -> new ResourceNotFoundException("Book not found with id: " + id));
         return mapToBookDetail(book, userId);
     }
@@ -157,14 +176,16 @@ public class BookServiceImpl implements BookService {
     @Override
     @Transactional(readOnly = true)
     public List<BookSummaryResponse> getRelatedBooks(Long bookId, int limit) {
+        List<String> visible = Entitlements.visibleCategories();
         Book current = bookRepository.findById(bookId)
+                .filter(b -> visible.contains(b.getCategory().getVisibility()))
                 .orElseThrow(() -> new ResourceNotFoundException("Book not found with id: " + bookId));
 
-        Pageable pageable = PageRequest.of(0, Math.max(1, limit), Sort.by("rating").descending());
-        List<Book> related = bookRepository.findByCategoryIdAndIdNot(current.getCategory().getId(), bookId, pageable);
+        Pageable pageable = PageRequest.of(0, Math.max(1, limit));
+        List<Book> related = bookRepository.findRelated(current.getCategory().getId(), bookId, visible, pageable);
 
         if (related.isEmpty()) {
-            related = bookRepository.findTopRatedBooks(pageable).stream()
+            related = bookRepository.findTopRatedBooks(visible, pageable).stream()
                     .filter(b -> !b.getId().equals(bookId))
                     .collect(Collectors.toList());
         }

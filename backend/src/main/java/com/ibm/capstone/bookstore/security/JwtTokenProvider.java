@@ -10,7 +10,10 @@ import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.Date;
+import java.util.UUID;
 
 @Component
 public class JwtTokenProvider {
@@ -34,6 +37,7 @@ public class JwtTokenProvider {
         Date expiryDate = new Date(now.getTime() + jwtExpirationMs);
 
         return Jwts.builder()
+                .id(UUID.randomUUID().toString().replace("-", ""))   // jti: lets one token be revoked on logout
                 .subject(userPrincipal.getUsername())
                 .claim("userId", userPrincipal.getId())
                 .claim("fullName", userPrincipal.getFullName())
@@ -44,17 +48,25 @@ public class JwtTokenProvider {
     }
 
     public String getUsernameFromJwt(String token) {
-        Claims claims = Jwts.parser()
-                .verifyWith(key)
-                .build()
-                .parseSignedClaims(token)
-                .getPayload();
-        return claims.getSubject();
+        return parse(token).getSubject();
+    }
+
+    /** The token's unique id (jti), or null for tokens issued before ids were added. */
+    public String getTokenId(String token) {
+        return parse(token).getId();
+    }
+
+    public LocalDateTime getExpiry(String token) {
+        return LocalDateTime.ofInstant(parse(token).getExpiration().toInstant(), ZoneId.systemDefault());
+    }
+
+    private Claims parse(String token) {
+        return Jwts.parser().verifyWith(key).build().parseSignedClaims(token).getPayload();
     }
 
     public boolean validateToken(String authToken) {
         try {
-            Jwts.parser().verifyWith(key).build().parseSignedClaims(authToken);
+            parse(authToken);
             return true;
         } catch (SecurityException | MalformedJwtException e) {
             log.warn("Invalid JWT signature: {}", e.getMessage());

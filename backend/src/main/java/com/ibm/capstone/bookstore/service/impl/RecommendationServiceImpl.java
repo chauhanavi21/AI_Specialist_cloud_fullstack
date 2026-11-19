@@ -4,6 +4,7 @@ import com.ibm.capstone.bookstore.domain.dto.BookSummaryResponse;
 import com.ibm.capstone.bookstore.domain.entities.Book;
 import com.ibm.capstone.bookstore.repository.BookRepository;
 import com.ibm.capstone.bookstore.repository.OrderRepository;
+import com.ibm.capstone.bookstore.security.Entitlements;
 import com.ibm.capstone.bookstore.service.RecommendationService;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -43,11 +44,12 @@ public class RecommendationServiceImpl implements RecommendationService {
 
         if (!purchasedCategories.isEmpty()) {
             recommendedBooks = new ArrayList<>(
-                    bookRepository.findRecommendationsByCategories(purchasedCategories, purchasedBookIds, pageable));
+                    bookRepository.findRecommendationsByCategories(purchasedCategories, purchasedBookIds,
+                            Entitlements.visibleCategories(), pageable));
         }
 
         if (recommendedBooks.size() < limit) {
-            for (Book b : bookRepository.findTopRatedBooks(pageable)) {
+            for (Book b : bookRepository.findTopRatedBooks(Entitlements.visibleCategories(), pageable)) {
                 if (recommendedBooks.size() >= limit) break;
                 if (!recommendedBooks.contains(b)) {
                     recommendedBooks.add(b);

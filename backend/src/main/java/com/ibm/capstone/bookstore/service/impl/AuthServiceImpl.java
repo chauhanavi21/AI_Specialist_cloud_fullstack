@@ -10,6 +10,8 @@ import com.ibm.capstone.bookstore.exception.BadRequestException;
 import com.ibm.capstone.bookstore.exception.ResourceNotFoundException;
 import com.ibm.capstone.bookstore.repository.UserRepository;
 import com.ibm.capstone.bookstore.security.JwtTokenProvider;
+import com.ibm.capstone.bookstore.security.LoginAttemptLimiter;
+import com.ibm.capstone.bookstore.security.TokenRevocationService;
 import com.ibm.capstone.bookstore.security.UserPrincipal;
 import com.ibm.capstone.bookstore.service.AuthService;
 import com.ibm.capstone.bookstore.service.GiftPointsService;
@@ -29,17 +31,23 @@ public class AuthServiceImpl implements AuthService {
     private final AuthenticationManager authenticationManager;
     private final JwtTokenProvider tokenProvider;
     private final GiftPointsService giftPointsService;
+    private final LoginAttemptLimiter loginLimiter;
+    private final TokenRevocationService revocationService;
 
     public AuthServiceImpl(UserRepository userRepository,
                            PasswordEncoder passwordEncoder,
                            AuthenticationManager authenticationManager,
                            JwtTokenProvider tokenProvider,
-                           GiftPointsService giftPointsService) {
+                           GiftPointsService giftPointsService,
+                           LoginAttemptLimiter loginLimiter,
+                           TokenRevocationService revocationService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.authenticationManager = authenticationManager;
         this.tokenProvider = tokenProvider;
         this.giftPointsService = giftPointsService;
+        this.loginLimiter = loginLimiter;
+        this.revocationService = revocationService;
     }
 
     @Override
@@ -76,12 +84,18 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public AuthResponse login(LoginRequest request) {
-        Authentication authentication = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(
-                        request.getEmail().trim().toLowerCase(),
-                        request.getPassword()
-                )
-        );
+        String email = request.getEmail().trim().toLowerCase();
+        loginLimiter.checkAllowed(email);
+
+        Authentication authentication;
+        try {
+            authentication = authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(email, request.getPassword()));
+        } catch (org.springframework.security.core.AuthenticationException e) {
+            loginLimiter.recordFailure(email);
+            throw e;
+        }
+        loginLimiter.reset(email);
 
         SecurityContextHolder.getContext().setAuthentication(authentication);
         String jwt = tokenProvider.generateToken(authentication);
@@ -91,6 +105,15 @@ public class AuthServiceImpl implements AuthService {
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + principal.getId()));
 
         return new AuthResponse(jwt, mapToProfileResponse(user));
+    }
+
+    @Override
+    public void logout(String token) {
+        if (token == null || !tokenProvider.validateToken(token)) {
+            return; // nothing to revoke: already expired or never valid
+        }
+        revocationService.revoke(tokenProvider.getTokenId(token), tokenProvider.getExpiry(token));
+        SecurityContextHolder.clearContext();
     }
 
     @Override

@@ -17,6 +17,8 @@ public class OrderDetailResponse extends OrderSummaryResponse {
     private BigDecimal couponDiscount;
     private BigDecimal walletAmountUsed;
     private String paymentReference;
+    private String carrier;
+    private String trackingNumber;
     private List<OrderItemResponse> items = new ArrayList<>();
 
     public OrderDetailResponse() {}
@@ -32,6 +34,12 @@ public class OrderDetailResponse extends OrderSummaryResponse {
 
     public String getPaymentReference() { return paymentReference; }
     public void setPaymentReference(String paymentReference) { this.paymentReference = paymentReference; }
+
+    public String getCarrier() { return carrier; }
+    public void setCarrier(String carrier) { this.carrier = carrier; }
+
+    public String getTrackingNumber() { return trackingNumber; }
+    public void setTrackingNumber(String trackingNumber) { this.trackingNumber = trackingNumber; }
 
     public AddressResponse getDeliveryAddress() { return deliveryAddress; }
     public void setDeliveryAddress(AddressResponse deliveryAddress) { this.deliveryAddress = deliveryAddress; }
