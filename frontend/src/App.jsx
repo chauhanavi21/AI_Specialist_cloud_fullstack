@@ -16,11 +16,13 @@ import CatalogPage, { DEFAULT_FILTERS } from './pages/CatalogPage';
 import OrdersPage from './pages/OrdersPage';
 import WishlistPage from './pages/WishlistPage';
 import WritersPage from './pages/WritersPage';
+import PoliciesPage from './pages/PoliciesPage';
+import AdminPage from './pages/AdminPage';
 import { useAuth } from './context/AuthContext';
 
 function BookstoreMain() {
-  const { loading: authLoading } = useAuth();
-  const [view, setView] = useState('catalog'); // catalog | orders | wishlist | writers
+  const { loading: authLoading, isAdmin } = useAuth();
+  const [view, setView] = useState('catalog'); // catalog | orders | wishlist | writers | policies | admin
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
 
   const [selectedBookId, setSelectedBookId] = useState(null);
@@ -59,6 +61,8 @@ function BookstoreMain() {
         {view === 'orders' && <OrdersPage />}
         {view === 'wishlist' && <WishlistPage onOpenDetail={openDetail} onBrowse={() => setView('catalog')} />}
         {view === 'writers' && <WritersPage onOpenDetail={openDetail} />}
+        {view === 'policies' && <PoliciesPage />}
+        {view === 'admin' && isAdmin && <AdminPage />}
       </main>
 
       <Footer />
@@ -69,7 +73,7 @@ function BookstoreMain() {
         onClose={() => setSelectedBookId(null)}
         onSelectBook={openDetail}
       />
-      <CartDrawer onProceedToCheckout={() => setIsCheckoutOpen(true)} />
+      <CartDrawer onProceedToCheckout={() => setIsCheckoutOpen(true)} onOpenDetail={openDetail} />
       <CheckoutModal
         isOpen={isCheckoutOpen}
         onClose={() => setIsCheckoutOpen(false)}

@@ -42,7 +42,13 @@ export function AuthProvider({ children }) {
     return res.user;
   };
 
-  const logout = () => {
+  // The server revokes the token so it cannot be reused; the browser forgets it either way.
+  const logout = async () => {
+    try {
+      await api.logout();
+    } catch {
+      // Signing out must never fail for the user: an expired or unreachable session is already signed out.
+    }
     removeAuthToken();
     setUser(null);
   };
@@ -71,6 +77,7 @@ export function AuthProvider({ children }) {
         user,
         loading,
         isAuthenticated: !!user,
+        isAdmin: user?.role === 'ROLE_ADMIN',
         login,
         register,
         logout,

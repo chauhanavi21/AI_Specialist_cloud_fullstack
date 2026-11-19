@@ -45,6 +45,7 @@ export const api = {
   register: (payload) => request('/auth/register', json('POST', payload)),
   login: (payload) => request('/auth/login', json('POST', payload)),
   getMe: () => request('/auth/me'),
+  logout: () => request('/auth/logout', { method: 'POST' }),
 
   // Catalog
   getCategories: () => request('/categories'),
@@ -83,6 +84,14 @@ export const api = {
   removeCartItem: (itemId) => request(`/cart/items/${itemId}`, { method: 'DELETE' }),
   clearCart: () => request('/cart', { method: 'DELETE' }),
 
+  // Stores, policies and delivery rates (public)
+  getStores: () => request('/stores'),
+  quoteShipping: (payload) => request('/shipping/quote', json('POST', payload)),
+
+  // Up-sell and cross-sell
+  getSuggestions: (bookId, limit = 4) => request(`/books/${bookId}/suggestions?limit=${limit}`),
+  getBasketSuggestions: (bookIds, limit = 4) => request(`/recommendations/basket?bookIds=${bookIds.join(',')}&limit=${limit}`),
+
   // Orders and 48 hour cancellation
   quoteOrder: (payload) => request('/orders/quote', json('POST', payload)),
   placeOrder: (payload) => request('/orders', json('POST', payload)),
@@ -90,4 +99,26 @@ export const api = {
   getOrderById: (orderId) => request(`/orders/${orderId}`),
   cancelOrder: (orderId, reason) => request(`/orders/${orderId}/cancel`, json('POST', { reason })),
   buyItAgain: (orderId) => request(`/orders/${orderId}/reorder`, { method: 'POST' }),
+  modifyOrder: (orderId, payload) => request(`/orders/${orderId}`, json('PATCH', payload)),
+  trackShipment: (orderId) => request(`/orders/${orderId}/shipment`),
+
+  // Returns and refunds
+  getReturnEligibility: (orderId) => request(`/orders/${orderId}/return-eligibility`),
+  requestReturn: (orderId, payload) => request(`/orders/${orderId}/returns`, json('POST', payload)),
+  getReturns: () => request('/returns'),
+  withdrawReturn: (returnId) => request(`/returns/${returnId}`, { method: 'DELETE' }),
+
+  // Administration (needs ROLE_ADMIN)
+  adminOverview: () => request('/admin/overview'),
+  adminOrders: () => request('/admin/orders'),
+  adminShipOrder: (orderId, status) => request(`/admin/orders/${orderId}/shipment`, json('PUT', { status })),
+  adminReturns: (all = false) => request(`/admin/returns?all=${all}`),
+  adminReturnAction: (returnId, action, note) => request(`/admin/returns/${returnId}/${action}`, json('POST', { note })),
+  adminStores: () => request('/admin/stores'),
+  adminCreateStore: (payload) => request('/admin/stores', json('POST', payload)),
+  adminAddPolicy: (storeId, payload) => request(`/admin/stores/${storeId}/policies`, json('POST', payload)),
+  adminDeletePolicy: (storeId, policyId) => request(`/admin/stores/${storeId}/policies/${policyId}`, { method: 'DELETE' }),
+  adminCreateCategory: (payload) => request('/admin/categories', json('POST', payload)),
+  adminCreateBook: (payload) => request('/admin/books', json('POST', payload)),
+  adminSetStock: (bookId, stockQuantity) => request(`/admin/books/${bookId}/stock`, json('PUT', { stockQuantity })),
 };
