@@ -22,6 +22,14 @@ public class PricingProperties {
     /** Flat delivery charge below the free-shipping threshold. */
     private BigDecimal shippingFee = new BigDecimal("49");
 
+    /** Delivery charge for the same city as the warehouse. */
+    private BigDecimal localShippingFee = new BigDecimal("29");
+    /** Delivery charge for the rest of India. */
+    private BigDecimal nationalShippingFee = new BigDecimal("79");
+    /** Where parcels are dispatched from; decides the delivery zone. */
+    private String warehouseCity = "Bengaluru";
+    private String warehouseState = "Karnataka";
+
     /** Rupees knocked off per gift point redeemed. */
     private BigDecimal rupeesPerPoint = BigDecimal.ONE;
 
@@ -36,6 +44,18 @@ public class PricingProperties {
 
     public BigDecimal getShippingFee() { return shippingFee; }
     public void setShippingFee(BigDecimal shippingFee) { this.shippingFee = shippingFee; }
+
+    public BigDecimal getLocalShippingFee() { return localShippingFee; }
+    public void setLocalShippingFee(BigDecimal localShippingFee) { this.localShippingFee = localShippingFee; }
+
+    public BigDecimal getNationalShippingFee() { return nationalShippingFee; }
+    public void setNationalShippingFee(BigDecimal nationalShippingFee) { this.nationalShippingFee = nationalShippingFee; }
+
+    public String getWarehouseCity() { return warehouseCity; }
+    public void setWarehouseCity(String warehouseCity) { this.warehouseCity = warehouseCity; }
+
+    public String getWarehouseState() { return warehouseState; }
+    public void setWarehouseState(String warehouseState) { this.warehouseState = warehouseState; }
 
     public BigDecimal getRupeesPerPoint() { return rupeesPerPoint; }
     public void setRupeesPerPoint(BigDecimal rupeesPerPoint) { this.rupeesPerPoint = rupeesPerPoint; }

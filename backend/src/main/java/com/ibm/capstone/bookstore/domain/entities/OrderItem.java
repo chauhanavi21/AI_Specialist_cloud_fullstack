@@ -39,6 +39,10 @@ public class OrderItem {
     @Column(name = "total_price", nullable = false, precision = 10, scale = 2)
     private BigDecimal totalPrice;
 
+    /** Units already refunded (removed from the order or returned). */
+    @Column(name = "refunded_quantity", nullable = false)
+    private Integer refundedQuantity = 0;
+
     public OrderItem() {}
 
     public Long getId() { return id; }
@@ -64,6 +68,12 @@ public class OrderItem {
 
     public BigDecimal getUnitPrice() { return unitPrice; }
     public void setUnitPrice(BigDecimal unitPrice) { this.unitPrice = unitPrice; }
+
+    public Integer getRefundedQuantity() { return refundedQuantity; }
+    public void setRefundedQuantity(Integer refundedQuantity) { this.refundedQuantity = refundedQuantity; }
+
+    /** Units still part of the order. */
+    public int remainingQuantity() { return quantity - (refundedQuantity == null ? 0 : refundedQuantity); }
 
     public BigDecimal getTotalPrice() { return totalPrice; }
     public void setTotalPrice(BigDecimal totalPrice) { this.totalPrice = totalPrice; }

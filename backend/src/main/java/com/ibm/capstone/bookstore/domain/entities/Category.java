@@ -22,6 +22,10 @@ public class Category {
     @Column(name = "book_count", nullable = false)
     private Integer bookCount = 0;
 
+    /** PUBLIC categories are visible to guests; MEMBERS categories only to signed-in customers. */
+    @Column(nullable = false, length = 20)
+    private String visibility = "PUBLIC";
+
     public Category() {}
 
     public Long getId() { return id; }
@@ -35,6 +39,11 @@ public class Category {
 
     public String getDescription() { return description; }
     public void setDescription(String description) { this.description = description; }
+
+    public String getVisibility() { return visibility; }
+    public void setVisibility(String visibility) { this.visibility = visibility; }
+
+    public boolean isMembersOnly() { return "MEMBERS".equalsIgnoreCase(visibility); }
 
     public Integer getBookCount() { return bookCount; }
     public void setBookCount(Integer bookCount) { this.bookCount = bookCount; }

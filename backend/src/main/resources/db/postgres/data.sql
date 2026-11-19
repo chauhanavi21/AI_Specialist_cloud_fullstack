@@ -8,6 +8,11 @@ VALUES
 (1, 'alex.dev@ibm.com', '$2a$10$eYaM.av7fpnqRNOsM.ogXuXxxarwO3Fc1EnY6rSulnA.Zqd8jPhh.', 'Alex Rivera', '+91 98100 00144', 250, 1500.00, 'ROLE_CUSTOMER', CURRENT_TIMESTAMP),
 (2, 'sarah.connor@example.com', '$2a$10$eYaM.av7fpnqRNOsM.ogXuXxxarwO3Fc1EnY6rSulnA.Zqd8jPhh.', 'Sarah Connor', '+91 98100 00188', 100, 0.00, 'ROLE_CUSTOMER', CURRENT_TIMESTAMP)
 ON CONFLICT DO NOTHING;
+-- Demo administrator (same demo password). Rotate or remove this account before any real deployment.
+INSERT INTO users (id, email, password_hash, full_name, phone_number, gift_points_balance, wallet_balance, role, created_at)
+VALUES (3, 'admin@bookworm.example', '$2a$10$eYaM.av7fpnqRNOsM.ogXuXxxarwO3Fc1EnY6rSulnA.Zqd8jPhh.', 'Store Admin', '+91 98100 00999', 0, 0.00, 'ROLE_ADMIN', CURRENT_TIMESTAMP)
+ON CONFLICT DO NOTHING;
+
 -- Seed Addresses
 INSERT INTO addresses (id, user_id, recipient_name, email, phone_number, street_address, address_line2, city, state, postal_code, country, is_default)
 VALUES
@@ -23,6 +28,11 @@ VALUES
 (4, 'DevOps & SRE', 'devops-sre', 'CI/CD pipelines, GitOps, observability, automated testing, and reliability.', 3),
 (5, 'Software Engineering & Architecture', 'software-engineering', 'Domain-Driven Design, clean code, design patterns, and system design.', 3)
 ON CONFLICT DO NOTHING;
+-- Members-only category (entitlement: guests cannot see it)
+INSERT INTO categories (id, name, slug, description, book_count, visibility)
+VALUES (6, 'Members Early Access', 'members-early-access', 'Pre-release titles for signed-in members.', 2, 'MEMBERS')
+ON CONFLICT DO NOTHING;
+
 -- Seed Publishers (Brands)
 INSERT INTO publishers (id, name, code, website)
 VALUES
@@ -70,6 +80,25 @@ VALUES
 (14, 'Automated Testing with Testcontainers and Spring Boot', 'Kevin Wittek', 14, '978-1617299902', 4, 3, 699.00, 849.00, 20, 4.8, 64, NULL, 'Real database and queue integration testing without fragile mocks using Docker and Testcontainers in Java.', 2024, CURRENT_DATE - INTERVAL '10 days', 310, 'English', 'eBook', 120, 3, FALSE),
 (15, 'Prompt Engineering & Agentic Workflows for Developers', 'David Chen & Liam Vance', 15, '978-1680509922', 2, 5, 599.00, 749.00, 42, 4.7, 110, NULL, 'Mastering system prompts, few-shot conditioning, structured schema generation, and agentic loop orchestration.', 2025, CURRENT_DATE - INTERVAL '5 days', 290, 'English', 'Paperback', 210, 2, TRUE)
 ON CONFLICT DO NOTHING;
+INSERT INTO books (id, title, author, author_id, isbn, category_id, publisher_id, price, original_price, stock_quantity, rating, review_count, cover_image_url, description, published_year, launch_date, page_count, book_language, book_format, copies_sold, tentative_delivery_days, is_featured)
+VALUES
+(16, 'Platform Engineering Field Notes (Members Early Access)', 'Priya Nair', NULL, '978-1098177011', 6, 2, 799.00, 949.00, 25, 4.7, 12, NULL, 'Early-access chapters on internal developer platforms, golden paths and self-service infrastructure. Available to signed-in members before general release.', 2026, CURRENT_DATE - INTERVAL '10 days', 320, 'English', 'eBook', 40, 1, FALSE),
+(17, 'Securing the AI Supply Chain (Members Early Access)', 'Marcus Webb', NULL, '978-1098177028', 6, 1, 899.00, 1049.00, 18, 4.6, 7, NULL, 'Threat models for model registries, prompt injection and dependency provenance in enterprise AI. Members-only preview edition.', 2026, CURRENT_DATE - INTERVAL '5 days', 280, 'English', 'eBook', 22, 1, FALSE)
+ON CONFLICT DO NOTHING;
+
+-- Store and store policies
+INSERT INTO stores (id, name, tagline, currency, return_window_days, active, created_at)
+VALUES (1, 'Book Worm', 'Technical books for builders', 'INR', 7, TRUE, CURRENT_TIMESTAMP)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO store_policies (id, store_id, policy_type, title, body, created_at)
+VALUES
+(1, 1, 'CANCELLATION', 'Cancel within 48 hours', 'You can cancel any order that has not shipped within 48 hours of purchase. Stock is restored and you are refunded in full, including wallet money and gift points.', CURRENT_TIMESTAMP),
+(2, 1, 'RETURN', 'Return within 7 days of delivery', 'Delivered books can be returned within 7 days of delivery if they are unused. Once the returned parcel is received we refund the price of the books, the tax on them, and any gift points you spent on them. Delivery fees are not refunded.', CURRENT_TIMESTAMP),
+(3, 1, 'SHIPPING', 'Delivery charges and times', 'Delivery is free above Rs 499. Otherwise the charge depends on the delivery zone: local Rs 29, regional Rs 49, national Rs 79. Metro and local deliveries arrive sooner.', CURRENT_TIMESTAMP),
+(4, 1, 'PRIVACY', 'Your payment details', 'Card numbers, expiry dates and CVV are never stored. We keep only the last four digits and a payment reference.', CURRENT_TIMESTAMP)
+ON CONFLICT DO NOTHING;
+
 -- Seed Coupons
 INSERT INTO coupons (id, code, description, discount_type, discount_value, min_order_amount, max_discount, active, expires_at)
 VALUES
@@ -110,12 +139,33 @@ INSERT INTO order_items (id, order_id, book_id, book_title, book_author, cover_i
 VALUES
 (1, 1, 3, 'Cloud Native Spring in Action', 'Thomas Vitale', NULL, 1, 849.00, 849.00)
 ON CONFLICT DO NOTHING;
+-- Shipment for the seeded order
+INSERT INTO shipments (id, order_id, carrier, tracking_number, status, shipping_zone, shipping_fee, estimated_delivery_date, created_at)
+VALUES (1, 1, 'BlueDart Express', 'BD-SEED-100001', 'PROCESSING', 'REGIONAL', 0.00, CURRENT_DATE, CURRENT_TIMESTAMP)
+ON CONFLICT DO NOTHING;
+
+-- Seed delivered order for Alex Rivera (eligible for a return within the store's 7-day window)
+INSERT INTO orders (id, order_number, user_id, address_id, order_status, payment_status, subtotal, tax, shipping_fee, total_amount, coupon_discount, points_redeemed, points_discount, points_earned, wallet_amount_used, payment_method, card_last4, payment_reference, estimated_delivery_date, created_at, shipping_zone)
+VALUES
+(2, 'BK-20261116-550200', 1, 1, 'DELIVERED', 'PAID', 749.00, 89.88, 0.00, 838.88, 0.00, 0, 0.00, 8, 0.00, 'CREDIT_CARD', '4242', 'CRD-SEED00000002', CURRENT_DATE - INTERVAL '1 days', CURRENT_TIMESTAMP - INTERVAL '3 days', 'LOCAL')
+ON CONFLICT DO NOTHING;
+
+INSERT INTO order_items (id, order_id, book_id, book_title, book_author, cover_image_url, quantity, unit_price, total_price)
+VALUES
+(2, 2, 5, 'Designing Data-Intensive Applications', 'Martin Kleppmann', NULL, 1, 749.00, 749.00)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO shipments (id, order_id, carrier, tracking_number, status, shipping_zone, shipping_fee, estimated_delivery_date, created_at, shipped_at, delivered_at)
+VALUES (2, 2, 'BlueDart Express', 'BD-SEED-100002', 'DELIVERED', 'LOCAL', 0.00, CURRENT_DATE - INTERVAL '1 days', CURRENT_TIMESTAMP - INTERVAL '3 days', CURRENT_TIMESTAMP - INTERVAL '2 days', CURRENT_TIMESTAMP - INTERVAL '1 days')
+ON CONFLICT DO NOTHING;
+
 -- Seed Gift Points Ledger (entries sum to the user's 250 point balance)
 INSERT INTO gift_points_ledger (id, user_id, order_id, points, type, description, created_at)
 VALUES
 (1, 1, NULL, 200, 'EARNED', 'Welcome Sign-up Bonus', CURRENT_TIMESTAMP),
-(2, 1, NULL, 41, 'EARNED', 'Review and Profile Completion Reward', CURRENT_TIMESTAMP),
-(3, 1, 1, 9, 'EARNED', 'Earned from Order #BK-20261101-440100', CURRENT_TIMESTAMP)
+(2, 1, NULL, 33, 'EARNED', 'Review and Profile Completion Reward', CURRENT_TIMESTAMP),
+(3, 1, 1, 9, 'EARNED', 'Earned from Order #BK-20261101-440100', CURRENT_TIMESTAMP),
+(4, 1, 2, 8, 'EARNED', 'Earned from Order #BK-20261116-550200', CURRENT_TIMESTAMP)
 ON CONFLICT DO NOTHING;
 INSERT INTO wallet_transactions (id, user_id, order_id, amount, type, description, created_at)
 VALUES (1, 1, NULL, 1500.00, 'TOP_UP', 'Welcome wallet credit', CURRENT_TIMESTAMP)
@@ -140,3 +190,8 @@ SELECT setval(pg_get_serial_sequence('reviews', 'id'), GREATEST((SELECT COALESCE
 SELECT setval(pg_get_serial_sequence('wishlist_items', 'id'), GREATEST((SELECT COALESCE(MAX(id), 0) FROM wishlist_items), 99) + 1, false);
 SELECT setval(pg_get_serial_sequence('author_follows', 'id'), GREATEST((SELECT COALESCE(MAX(id), 0) FROM author_follows), 99) + 1, false);
 SELECT setval(pg_get_serial_sequence('wallet_transactions', 'id'), GREATEST((SELECT COALESCE(MAX(id), 0) FROM wallet_transactions), 99) + 1, false);
+SELECT setval(pg_get_serial_sequence('stores', 'id'), GREATEST((SELECT COALESCE(MAX(id), 0) FROM stores), 99) + 1, false);
+SELECT setval(pg_get_serial_sequence('store_policies', 'id'), GREATEST((SELECT COALESCE(MAX(id), 0) FROM store_policies), 99) + 1, false);
+SELECT setval(pg_get_serial_sequence('shipments', 'id'), GREATEST((SELECT COALESCE(MAX(id), 0) FROM shipments), 99) + 1, false);
+SELECT setval(pg_get_serial_sequence('order_returns', 'id'), GREATEST((SELECT COALESCE(MAX(id), 0) FROM order_returns), 99) + 1, false);
+SELECT setval(pg_get_serial_sequence('return_items', 'id'), GREATEST((SELECT COALESCE(MAX(id), 0) FROM return_items), 99) + 1, false);
