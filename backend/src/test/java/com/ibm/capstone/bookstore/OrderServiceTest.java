@@ -2,6 +2,7 @@ package com.ibm.capstone.bookstore;
 
 import com.ibm.capstone.bookstore.config.PricingProperties;
 import com.ibm.capstone.bookstore.domain.dto.CancelOrderRequest;
+import com.ibm.capstone.bookstore.domain.dto.LifecycleDto;
 import com.ibm.capstone.bookstore.domain.dto.OrderConfirmationResponse;
 import com.ibm.capstone.bookstore.domain.dto.PlaceOrderRequest;
 import com.ibm.capstone.bookstore.domain.entities.*;
@@ -304,5 +305,46 @@ public class OrderServiceTest {
         testOrder.setOrderStatus(OrderStatus.CANCELLED);
         when(orderRepository.findByIdAndUserId(100L, 1L)).thenReturn(Optional.of(testOrder));
         assertThrows(OrderCancellationException.class, () -> orderService.cancelOrder(1L, 100L, null));
+    }
+
+    // ---- Orders created before delivery zones existed ----
+
+    @Test
+    @DisplayName("An order from before delivery zones (no zone recorded, no shipment) can still be moved to another address")
+    void legacyOrderWithoutAZoneCanBeModified() {
+        testOrder.setShippingZone(null);                         // what an upgraded database holds for an old order
+        Address elsewhere = new Address();
+        elsewhere.setId(2L);
+        elsewhere.setUser(testUser);
+        elsewhere.setCity("Mysuru");                              // regional, the same zone the flat fee corresponds to
+        elsewhere.setState("Karnataka");
+        when(orderRepository.findByIdAndUserId(100L, 1L)).thenReturn(Optional.of(testOrder));
+        when(shipmentRepository.findByOrderId(100L)).thenReturn(Optional.empty());
+        when(addressRepository.findByIdAndUserId(2L, 1L)).thenReturn(Optional.of(elsewhere));
+        when(orderRepository.save(any(Order.class))).thenAnswer(i -> i.getArgument(0));
+
+        OrderConfirmationResponse response = assertDoesNotThrow(
+                () -> orderService.modifyOrder(1L, 100L, new LifecycleDto.ModifyOrderRequest(2L, null)));
+
+        assertSame(elsewhere, testOrder.getDeliveryAddress());
+        assertEquals(ShippingZone.REGIONAL, testOrder.getShippingZone(), "the zone is recorded from now on");
+        assertNotNull(response.getMessage());
+    }
+
+    @Test
+    @DisplayName("A legacy order is still refused an address in a farther zone than the flat fee it paid")
+    void legacyOrderCannotMoveToAFartherZone() {
+        testOrder.setShippingZone(null);
+        Address far = new Address();
+        far.setId(3L);
+        far.setUser(testUser);
+        far.setCity("Delhi");
+        far.setState("Delhi");
+        when(orderRepository.findByIdAndUserId(100L, 1L)).thenReturn(Optional.of(testOrder));
+        when(shipmentRepository.findByOrderId(100L)).thenReturn(Optional.empty());
+        when(addressRepository.findByIdAndUserId(3L, 1L)).thenReturn(Optional.of(far));
+
+        assertThrows(BadRequestException.class,
+                () -> orderService.modifyOrder(1L, 100L, new LifecycleDto.ModifyOrderRequest(3L, null)));
     }
 }

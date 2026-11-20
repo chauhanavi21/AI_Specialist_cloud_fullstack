@@ -439,9 +439,12 @@ public class OrderServiceImpl implements OrderService {
         Address address = addressRepository.findByIdAndUserId(addressId, userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Address not found: " + addressId));
         ShippingZone newZone = shippingCalculator.zoneFor(address);
-        if (newZone != order.getShippingZone() && newZone.ordinal() > order.getShippingZone().ordinal()) {
+        // Orders placed before delivery zones existed have none recorded. They were charged the single flat fee, which is
+        // the regional charge, so that is the zone they are compared against.
+        ShippingZone paidZone = order.getShippingZone() != null ? order.getShippingZone() : ShippingZone.REGIONAL;
+        if (newZone.ordinal() > paidZone.ordinal()) {
             throw new BadRequestException("That address is in a farther delivery zone than the one you paid for ("
-                    + order.getShippingZone().name().toLowerCase() + "). Place a new order for it instead.");
+                    + paidZone.name().toLowerCase() + "). Place a new order for it instead.");
         }
         order.setDeliveryAddress(address);
         int slowestBookDays = order.getItems().stream()
