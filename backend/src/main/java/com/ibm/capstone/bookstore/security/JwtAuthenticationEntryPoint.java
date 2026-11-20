@@ -29,7 +29,10 @@ public class JwtAuthenticationEntryPoint implements AuthenticationEntryPoint {
     public void commence(HttpServletRequest request,
                          HttpServletResponse response,
                          AuthenticationException authException) throws IOException, ServletException {
-        log.warn("Unauthorized access attempt on URI: {}", request.getRequestURI());
+        // When the container forwards an error to /error, the path the caller asked for is kept in this attribute.
+        Object original = request.getAttribute("jakarta.servlet.error.request_uri");
+        String path = original != null ? original.toString() : request.getRequestURI();
+        log.warn("Unauthorized access attempt on URI: {}", path);
 
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
@@ -38,7 +41,7 @@ public class JwtAuthenticationEntryPoint implements AuthenticationEntryPoint {
                 HttpStatus.UNAUTHORIZED.value(),
                 "Unauthorized",
                 "Full authentication is required to access this resource",
-                request.getRequestURI()
+                path
         );
 
         response.getWriter().write(objectMapper.writeValueAsString(errorResponse));
