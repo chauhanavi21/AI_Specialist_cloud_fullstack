@@ -10,7 +10,19 @@ info:
     v2 adds the wireframe features: catalog filters (language, format, price) and landing shelves,
     wishlist, followed writers, reviews, wallet, coupons and a server-side order quote.
     All money is in Indian rupees (INR): 12% tax, free delivery from 499, 1 gift point = 1 rupee.
-  version: 2.0.0
+
+    v3 adds the back-office and after-sales requirements from the architecture slide (slide 4):
+    guest vs member entitlements, roles, logout, stores and store policies, catalogue administration,
+    shipments with zone-based delivery rates and tracking, order modification, returns with refunds,
+    and up-sell / cross-sell suggestions.
+
+    **Who can call what**
+    - *Guest* (no token): browse the public catalogue, writers, coupons, store policies, delivery rate quotes.
+    - *Member* (any signed-in customer): everything above, plus members-only categories, basket, orders, returns.
+    - *Administrator* (`ROLE_ADMIN`): everything under `/admin`. A signed-in customer gets 403, a guest gets 401.
+
+    Members-only books are invisible to guests: a direct request for one returns 404, not 403, so its existence is not revealed.
+  version: 3.0.0
   contact:
     name: Cloud FullStack AI Engineering Team
     email: capstone@ibm-specialist.example.com
@@ -510,6 +522,46 @@ paths:
                 $ref: '#/components/schemas/OrderDetail'
         '404':
           $ref: '#/components/responses/NotFound'
+    patch:
+      tags:
+        - Order Lifecycle
+      summary: "Modify an order before it ships"
+      operationId: modifyOrder
+      description: |
+        Change the delivery address and/or take books off the order. Allowed only while the order is CONFIRMED or PROCESSING,
+        the parcel has not been handed to the carrier, and the modification window (24 hours by default) is open.
+        
+        Removed books are refunded: their price, their share of the tax and coupon, and their share of the gift points spent.
+        Delivery is refunded only if the whole order is cancelled, so the last book cannot be removed (cancel the order instead).
+        A new address in a farther delivery zone than the one paid for is refused.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ModifyOrderRequest'
+      responses:
+        '200':
+          description: Order updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderConfirmation'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
 
   /orders/{orderId}/cancel:
     post:
@@ -517,8 +569,9 @@ paths:
         - Orders & Checkout
       summary: Cancel an order within 48 hours of purchase
       description: |
-        Business Rule: Customers can cancel an order within 48 hours of placing it.
-        Refunds the paid amount and restores redeemed gift points.
+        Business Rule: Customers can cancel an order within 48 hours of placing it, as long as it has not shipped.
+        Refunds whatever is still outstanding (so a partial refund from an earlier order change is not paid twice),
+        restores redeemed gift points, revokes earned points and restocks the books. After delivery, use a return instead.
       operationId: cancelOrder
       security:
         - bearerAuth: []
@@ -903,6 +956,11 @@ paths:
                 couponCode:
                   type: string
                   nullable: true
+                addressId:
+                  type: integer
+                  format: int64
+                  nullable: true
+                  description: Delivery address. When given, the delivery charge and date use that address's zone.
                 pointsToRedeem:
                   type: integer
                   example: 100
@@ -915,6 +973,1086 @@ paths:
                 $ref: '#/components/schemas/Quote'
         '400':
           $ref: '#/components/responses/BadRequest'
+
+  # ==================== v3: STORES, LIFECYCLE, ADMINISTRATION ====================
+  /auth/logout:
+    post:
+      tags:
+        - Authentication
+      summary: "Sign out and revoke the token"
+      operationId: logoutUser
+      description: |
+        Revokes the presented token so it can no longer be used, even though it has not expired.
+        Signing out twice, or with an already-expired token, is harmless and still returns 200.
+      responses:
+        '200':
+          description: Signed out
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Signed out
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /stores:
+    get:
+      tags:
+        - Stores & Policies
+      summary: "List the open stores with their policies"
+      operationId: listStores
+      description: |
+        Public. Closed stores are not listed.
+      responses:
+        '200':
+          description: Open stores
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Store'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /stores/{id}:
+    get:
+      tags:
+        - Stores & Policies
+      summary: "Get one open store with its policies"
+      operationId: getStore
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: The store
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Store'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /shipping/quote:
+    post:
+      tags:
+        - Stores & Policies
+      summary: "Delivery charge, zone and extra transit time for a city and state"
+      operationId: quoteShipping
+      description: |
+        Public: no sign-in needed. The zone is LOCAL (same city as the warehouse), REGIONAL (same or a neighbouring state)
+        or NATIONAL (anywhere else). Pass a subtotal to see whether delivery would be free at that basket value.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ShippingQuoteRequest'
+      responses:
+        '200':
+          description: The delivery quote
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShippingQuote'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /books/{id}/suggestions:
+    get:
+      tags:
+        - Recommendations
+      summary: "Up-sell and cross-sell suggestions for a book"
+      operationId: getBookSuggestions
+      description: |
+        Up-sell: higher-rated alternatives in the same category, at most 40% dearer.
+        Cross-sell: books other customers bought in the same order, topped up with top-rated books from other categories.
+        Public, but a members-only book returns 404 to a guest.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 4
+      responses:
+        '200':
+          description: Suggestions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Suggestions'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /recommendations/basket:
+    get:
+      tags:
+        - Recommendations
+      summary: "Up-sell and cross-sell for the books in the basket"
+      operationId: getBasketSuggestions
+      description: |
+        Members only: the basket belongs to a signed-in customer. Members-only books are excluded for guests.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: bookIds
+          in: query
+          required: true
+          schema:
+            type: array
+            items:
+              type: integer
+              format: int64
+          style: form
+          explode: false
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 4
+      responses:
+        '200':
+          description: Suggestions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Suggestions'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /orders/{orderId}/shipment:
+    get:
+      tags:
+        - Order Lifecycle
+      summary: "Track the shipment for an order"
+      operationId: trackShipment
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: The shipment and its tracking timeline
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Shipment'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /orders/{orderId}/return-eligibility:
+    get:
+      tags:
+        - Order Lifecycle
+      summary: "Which books on a delivered order can still be returned"
+      operationId: getReturnEligibility
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Eligibility, with the reason when not eligible
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReturnEligibility'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /orders/{orderId}/returns:
+    post:
+      tags:
+        - Order Lifecycle
+      summary: "Return delivered books"
+      operationId: requestReturn
+      description: |
+        Starts a return (an RMA) with a collection tracking number. Nothing is refunded and nothing is restocked yet:
+        the refund is paid, and the books go back on the shelf, when the store records that the parcel arrived.
+        Books already in an open return cannot be returned twice.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReturnRequest'
+      responses:
+        '201':
+          description: Return requested
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReturnResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /orders/{orderId}/buy-again:
+    post:
+      tags:
+        - Orders & Checkout
+      summary: "Buy It Again (alias of /orders/{orderId}/reorder)"
+      operationId: buyItAgainAlias
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Items added to the basket
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CartResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /returns:
+    get:
+      tags:
+        - Order Lifecycle
+      summary: "My returns"
+      operationId: listMyReturns
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: The caller's returns, newest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ReturnResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /returns/{returnId}:
+    get:
+      tags:
+        - Order Lifecycle
+      summary: "One of my returns"
+      operationId: getMyReturn
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: returnId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: The return
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReturnResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags:
+        - Order Lifecycle
+      summary: "Withdraw a return before the carrier has collected it"
+      operationId: withdrawReturn
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: returnId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Return withdrawn
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReturnResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/overview:
+    get:
+      tags:
+        - Administration
+      summary: "Headline numbers for the dashboard"
+      operationId: adminOverview
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Overview
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminOverview'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/orders:
+    get:
+      tags:
+        - Administration
+      summary: "Recent orders across all customers"
+      operationId: adminListOrders
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Up to 100 orders, newest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AdminOrderRow'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/orders/{orderId}/shipment:
+    put:
+      tags:
+        - Administration
+      summary: "Mark an order's parcel SHIPPED or DELIVERED"
+      operationId: adminUpdateShipment
+      description: |
+        Moves PROCESSING to SHIPPED, and SHIPPED to DELIVERED. Any other order of events, or a cancelled order, is refused.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ShipmentUpdate'
+      responses:
+        '200':
+          description: Updated shipment
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Shipment'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/returns:
+    get:
+      tags:
+        - Administration
+      summary: "Return requests"
+      operationId: adminListReturns
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: all
+          in: query
+          schema:
+            type: boolean
+            default: false
+          description: Include closed returns. By default only open ones are listed.
+      responses:
+        '200':
+          description: Returns, oldest open first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ReturnResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/returns/{id}/pickup:
+    post:
+      tags:
+        - Administration
+      summary: "Record that the carrier collected the returned parcel"
+      operationId: adminPickupReturn
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Return marked as picked up
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReturnResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/returns/{id}/receive:
+    post:
+      tags:
+        - Administration
+      summary: "Parcel received: restock the books and pay the refund"
+      operationId: adminReceiveReturn
+      description: |
+        Refund is proportional: the books' price, their share of tax and coupon, and their share of the gift points spent.
+        Earned points on the returned books are revoked. If this empties the order, its status becomes RETURNED.
+        Calling it again on a closed return is refused, so a refund cannot be paid twice.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminReturnAction'
+      responses:
+        '200':
+          description: Refund processed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReturnResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/returns/{id}/reject:
+    post:
+      tags:
+        - Administration
+      summary: "Reject a return request"
+      operationId: adminRejectReturn
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminReturnAction'
+      responses:
+        '200':
+          description: Return rejected
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReturnResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/stores:
+    get:
+      tags:
+        - Administration
+      summary: "List every store, including closed ones"
+      operationId: adminListStores
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: All stores
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Store'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      tags:
+        - Administration
+      summary: "Create a store"
+      operationId: adminCreateStore
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StoreRequest'
+      responses:
+        '201':
+          description: Store created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Store'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/stores/{id}:
+    put:
+      tags:
+        - Administration
+      summary: "Update a store's name, tagline and return window"
+      operationId: adminUpdateStore
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StoreRequest'
+      responses:
+        '200':
+          description: Store updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Store'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/stores/{id}/active/{active}:
+    put:
+      tags:
+        - Administration
+      summary: "Open or close a store"
+      operationId: adminSetStoreActive
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+        - name: active
+          in: path
+          required: true
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Store updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Store'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/stores/{id}/policies:
+    post:
+      tags:
+        - Administration
+      summary: "Add a store policy"
+      operationId: adminAddPolicy
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PolicyRequest'
+      responses:
+        '201':
+          description: Policy added
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Store'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/stores/{id}/policies/{policyId}:
+    put:
+      tags:
+        - Administration
+      summary: "Edit a store policy"
+      operationId: adminUpdatePolicy
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+        - name: policyId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PolicyRequest'
+      responses:
+        '200':
+          description: Policy updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Store'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags:
+        - Administration
+      summary: "Remove a store policy"
+      operationId: adminDeletePolicy
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+        - name: policyId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Policy removed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Store'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/categories:
+    post:
+      tags:
+        - Administration
+      summary: "Create a catalogue category"
+      operationId: adminCreateCategory
+      description: |
+        Names must be unique and produce a unique web address (slug). MEMBERS visibility hides the category and its books from guests.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CategoryRequest'
+      responses:
+        '201':
+          description: Category created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/categories/{id}:
+    put:
+      tags:
+        - Administration
+      summary: "Update a category"
+      operationId: adminUpdateCategory
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CategoryRequest'
+      responses:
+        '200':
+          description: Category updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags:
+        - Administration
+      summary: "Delete an empty category"
+      operationId: adminDeleteCategory
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '204':
+          description: Category deleted
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/books:
+    post:
+      tags:
+        - Administration
+      summary: "Add a book to the catalogue"
+      operationId: adminCreateBook
+      description: |
+        ISBNs must be unique. The original price cannot be lower than the selling price. The category's book count is kept in step.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BookRequest'
+      responses:
+        '201':
+          description: Book added
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookDetail'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/books/{id}:
+    put:
+      tags:
+        - Administration
+      summary: "Update a book"
+      operationId: adminUpdateBook
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BookRequest'
+      responses:
+        '200':
+          description: Book updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookDetail'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags:
+        - Administration
+      summary: "Delete a book that has never been ordered"
+      operationId: adminDeleteBook
+      description: |
+        A book that appears on a past order cannot be deleted, so history stays intact. Set its stock to 0 to take it off sale instead.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '204':
+          description: Book deleted
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/books/{id}/stock:
+    put:
+      tags:
+        - Administration
+      summary: "Set the stock on hand"
+      operationId: adminSetStock
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StockUpdate'
+      responses:
+        '200':
+          description: Book with the new stock
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookDetail'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
 
 components:
   securitySchemes:
@@ -938,6 +2076,12 @@ components:
             $ref: '#/components/schemas/ErrorResponse'
     NotFound:
       description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Forbidden:
+      description: Signed in, but the account does not have the ROLE_ADMIN role this operation needs
       content:
         application/json:
           schema:
@@ -1368,6 +2512,9 @@ components:
         totalPrice:
           type: number
           format: double
+        refundedQuantity:
+          type: integer
+          description: Units already refunded (removed from the order or returned).
 
     OrderSummary:
       type: object
@@ -1381,11 +2528,11 @@ components:
           example: BK-20261104-8921
         orderStatus:
           type: string
-          enum: [CONFIRMED, PROCESSING, SHIPPED, DELIVERED, CANCELLED]
+          enum: [CONFIRMED, PROCESSING, SHIPPED, DELIVERED, CANCELLED, RETURNED]
           example: CONFIRMED
         paymentStatus:
           type: string
-          enum: [PAID, REFUNDED, FAILED]
+          enum: [PAID, PARTIALLY_REFUNDED, REFUNDED, FAILED]
           example: PAID
         totalAmount:
           type: number
@@ -1419,6 +2566,29 @@ components:
           type: number
           format: double
           example: 47.5
+        refundedAmount:
+          type: number
+          format: double
+          description: Cash refunded so far (partial refunds from order changes and returns, or the full refund on cancellation).
+          example: 0
+        shippingZone:
+          type: string
+          enum: [LOCAL, REGIONAL, NATIONAL]
+          nullable: true
+        shipmentStatus:
+          type: string
+          enum: [PROCESSING, SHIPPED, DELIVERED, CANCELLED]
+          nullable: true
+        canModify:
+          type: boolean
+          description: True while the order has not shipped, is inside the modification window and has more than one book left.
+        canReturn:
+          type: boolean
+          description: True once delivered, inside the store's return window, with books still returnable.
+        returnDeadline:
+          type: string
+          format: date
+          nullable: true
 
     OrderDetail:
       allOf:
@@ -1446,6 +2616,12 @@ components:
             shippingFee:
               type: number
               format: double
+            carrier:
+              type: string
+              nullable: true
+            trackingNumber:
+              type: string
+              nullable: true
 
     OrderConfirmation:
       type: object
@@ -1719,3 +2895,254 @@ components:
           type: number
         walletCoversTotal:
           type: boolean
+        shippingZone:
+          type: string
+          enum: [LOCAL, REGIONAL, NATIONAL]
+          description: Zone of the chosen address (REGIONAL when no address was given).
+        estimatedDeliveryDate:
+          type: string
+          format: date
+
+    # ---------------- v3 ----------------
+    StorePolicy:
+      type: object
+      properties:
+        id: {type: integer, format: int64}
+        type: {type: string, enum: [CANCELLATION, RETURN, SHIPPING, PRIVACY, PAYMENT, OTHER]}
+        title: {type: string}
+        body: {type: string}
+
+    Store:
+      type: object
+      properties:
+        id: {type: integer, format: int64}
+        name: {type: string, example: Book Worm}
+        tagline: {type: string, nullable: true}
+        currency: {type: string, example: INR}
+        returnWindowDays: {type: integer, example: 7}
+        active: {type: boolean}
+        policies:
+          type: array
+          items: {$ref: '#/components/schemas/StorePolicy'}
+
+    StoreRequest:
+      type: object
+      required: [name]
+      properties:
+        name: {type: string, maxLength: 150}
+        tagline: {type: string, maxLength: 255}
+        returnWindowDays: {type: integer, minimum: 0, maximum: 90}
+
+    PolicyRequest:
+      type: object
+      required: [type, title, body]
+      properties:
+        type: {type: string, enum: [CANCELLATION, RETURN, SHIPPING, PRIVACY, PAYMENT, OTHER]}
+        title: {type: string, maxLength: 150}
+        body: {type: string, maxLength: 4000}
+
+    CategoryRequest:
+      type: object
+      required: [name]
+      properties:
+        name: {type: string, maxLength: 100}
+        description: {type: string, maxLength: 1000}
+        visibility:
+          type: string
+          enum: [PUBLIC, MEMBERS]
+          default: PUBLIC
+          description: MEMBERS hides the category, and every book in it, from guests.
+
+    BookRequest:
+      type: object
+      required: [title, author, isbn, categoryId, publisherId, price, stockQuantity, description, publishedYear, pageCount]
+      properties:
+        title: {type: string, maxLength: 255}
+        author: {type: string, maxLength: 255}
+        isbn: {type: string, maxLength: 20}
+        categoryId: {type: integer, format: int64}
+        publisherId: {type: integer, format: int64}
+        authorId: {type: integer, format: int64, nullable: true}
+        price: {type: number, minimum: 0.01}
+        originalPrice: {type: number, minimum: 0.01, description: Defaults to the price. Cannot be lower than the price.}
+        stockQuantity: {type: integer, minimum: 0}
+        description: {type: string, maxLength: 4000}
+        publishedYear: {type: integer, minimum: 1900, maximum: 2100}
+        pageCount: {type: integer, minimum: 1}
+        language: {type: string, default: English}
+        format: {type: string, default: Paperback}
+        tentativeDeliveryDays: {type: integer, minimum: 1, maximum: 30, default: 2}
+        featured: {type: boolean}
+
+    StockUpdate:
+      type: object
+      required: [stockQuantity]
+      properties:
+        stockQuantity: {type: integer, minimum: 0}
+
+    ShipmentUpdate:
+      type: object
+      required: [status]
+      properties:
+        status: {type: string, enum: [SHIPPED, DELIVERED]}
+
+    AdminOverview:
+      type: object
+      properties:
+        orders: {type: integer}
+        customers: {type: integer}
+        books: {type: integer}
+        openReturns: {type: integer}
+        revenue: {type: number, description: Money received minus money refunded.}
+
+    AdminOrderRow:
+      type: object
+      properties:
+        id: {type: integer, format: int64}
+        orderNumber: {type: string}
+        customerEmail: {type: string}
+        status: {type: string}
+        paymentStatus: {type: string}
+        totalAmount: {type: number}
+        createdAt: {type: string, format: date-time}
+
+    ShippingQuoteRequest:
+      type: object
+      required: [city, state]
+      properties:
+        city: {type: string, example: Delhi}
+        state: {type: string, example: Delhi}
+        subtotal: {type: number, nullable: true, description: Basket value, to see whether delivery would be free.}
+
+    ShippingQuote:
+      type: object
+      properties:
+        zone: {type: string, enum: [LOCAL, REGIONAL, NATIONAL]}
+        fee: {type: number, example: 79}
+        freeDelivery: {type: boolean}
+        freeDeliveryThreshold: {type: number, example: 499}
+        extraTransitDays: {type: integer}
+        carrier: {type: string, example: Delhivery Surface}
+
+    TrackingEvent:
+      type: object
+      properties:
+        status: {type: string, enum: [ORDER_PLACED, LABEL_CREATED, SHIPPED, DELIVERED, CANCELLED]}
+        description: {type: string}
+        at: {type: string, format: date-time}
+
+    Shipment:
+      type: object
+      properties:
+        id: {type: integer, format: int64}
+        orderId: {type: integer, format: int64}
+        carrier: {type: string}
+        trackingNumber: {type: string}
+        status: {type: string, enum: [PROCESSING, SHIPPED, DELIVERED, CANCELLED]}
+        shippingZone: {type: string, enum: [LOCAL, REGIONAL, NATIONAL], nullable: true}
+        shippingFee: {type: number}
+        estimatedDeliveryDate: {type: string, format: date}
+        shippedAt: {type: string, format: date-time, nullable: true}
+        deliveredAt: {type: string, format: date-time, nullable: true}
+        events:
+          type: array
+          items: {$ref: '#/components/schemas/TrackingEvent'}
+
+    ItemRemoval:
+      type: object
+      required: [orderItemId, quantity]
+      properties:
+        orderItemId: {type: integer, format: int64}
+        quantity: {type: integer, minimum: 1}
+
+    ModifyOrderRequest:
+      type: object
+      description: Either field may be omitted, but not both.
+      properties:
+        addressId: {type: integer, format: int64, nullable: true}
+        removeItems:
+          type: array
+          nullable: true
+          items: {$ref: '#/components/schemas/ItemRemoval'}
+
+    ReturnLine:
+      type: object
+      required: [orderItemId, quantity]
+      properties:
+        orderItemId: {type: integer, format: int64}
+        quantity: {type: integer, minimum: 1}
+
+    ReturnRequest:
+      type: object
+      required: [items, reason]
+      properties:
+        items:
+          type: array
+          minItems: 1
+          items: {$ref: '#/components/schemas/ReturnLine'}
+        reason: {type: string, maxLength: 300}
+
+    ReturnLineResponse:
+      type: object
+      properties:
+        orderItemId: {type: integer, format: int64}
+        bookTitle: {type: string}
+        quantity: {type: integer}
+        value: {type: number}
+
+    ReturnResponse:
+      type: object
+      properties:
+        id: {type: integer, format: int64}
+        rmaNumber: {type: string, example: RMA-20261119-482113}
+        orderId: {type: integer, format: int64}
+        orderNumber: {type: string}
+        status: {type: string, enum: [REQUESTED, PICKED_UP, REFUNDED, REJECTED]}
+        reason: {type: string}
+        items:
+          type: array
+          items: {$ref: '#/components/schemas/ReturnLineResponse'}
+        estimatedRefund: {type: number, description: What the customer can expect; the final figure is fixed when the refund is processed.}
+        refundAmount: {type: number, nullable: true, description: Null until the refund is paid.}
+        refundReference: {type: string, nullable: true}
+        pointsRefunded: {type: integer}
+        pointsRevoked: {type: integer}
+        returnCarrier: {type: string}
+        returnTrackingNumber: {type: string}
+        requestedAt: {type: string, format: date-time}
+        completedAt: {type: string, format: date-time, nullable: true}
+        adminNote: {type: string, nullable: true}
+        message: {type: string, nullable: true}
+
+    ReturnableLine:
+      type: object
+      properties:
+        orderItemId: {type: integer, format: int64}
+        bookTitle: {type: string}
+        maxQuantity: {type: integer}
+        unitPrice: {type: number}
+
+    ReturnEligibility:
+      type: object
+      properties:
+        eligible: {type: boolean}
+        reason: {type: string, nullable: true, description: Why the order cannot be returned, when eligible is false.}
+        returnDeadline: {type: string, format: date, nullable: true}
+        lines:
+          type: array
+          items: {$ref: '#/components/schemas/ReturnableLine'}
+
+    AdminReturnAction:
+      type: object
+      properties:
+        note: {type: string, maxLength: 300}
+
+    Suggestions:
+      type: object
+      properties:
+        upsell:
+          type: array
+          items: {$ref: '#/components/schemas/BookSummary'}
+        crossSell:
+          type: array
+          items: {$ref: '#/components/schemas/BookSummary'}
