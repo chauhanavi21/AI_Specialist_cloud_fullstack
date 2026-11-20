@@ -5,6 +5,15 @@
 **Target Platform**: Spring Boot 3.3 (Java 21), React 18, PostgreSQL, deployable to Red Hat OpenShift (ROKS / ROSA)
 **Date**: November 2026
 
+**Revision validation (November 20, 2026):** 79 backend tests and the frontend production build passed. A fresh native PostgreSQL
+16.16 run passed 51 API/security assertions; all 22 tables retained identical row counts and data hashes after PostgreSQL and backend
+restarts. [Captured evidence](docs/evidence/local-2026-11-20/README.md) and [Sandbox/resubmission steps](docs/RESUBMISSION.md).
+**Live OpenShift validation also passed:** OpenShift 4.22.22, PostgreSQL 16.15 in a persistent container, both images built in the cluster,
+all 11 manifest resources accepted/applied, **57 public-route assertions passed**, 22 table counts/data hashes unchanged after database/backend
+restarts, and positive/negative network probes passed. [Captured cluster evidence](docs/evidence/openshift-2026-11-20/README.md).
+
+**Live app:** <https://bookstore-route-avi-chauhan-dev.apps.rm1.0a51.p1.openshiftapps.com> (temporary Sandbox).
+
 ---
 
 ## 1. Executive Summary
@@ -153,18 +162,19 @@ The whole sequence is scripted in [`deploy/verify-postgres.sh`](deploy/verify-po
 3. **A signing secret generated with the recommended command was rejected on Windows.** `openssl` there ends lines with CRLF, and the stray carriage return failed the guard's strict base64 check. The scripts now strip it, and the guard ignores surrounding whitespace.
 4. **Two defects in the verification script itself**, found by running it: it trusted any healthy answer on its port (so a leftover application could make a run "pass" against the wrong database), and its restart step stopped the Maven wrapper but not the Java process, so the "restart" did nothing. Both fixed; the script now refuses to start if the port is taken and waits for the port to free.
 
-### OpenShift manifest: checked, not applied
+### OpenShift: built, deployed and validated live
 
-- The manifest has 12 resources. **11 pass strict schema validation** (`kubeconform`, Kubernetes 1.30); the OpenShift `Route` is not in that schema, so it was skipped by the validator and checked by hand.
+- The manifest has 11 namespaced resources. All **11 passed server-side validation on the actual OpenShift 4.22.22 cluster**, including the `Route`, and were applied successfully. The earlier offline schema check passed 10 and skipped the OpenShift-only Route; the live validation closes that gap.
 - A review found and fixed gaps a schema cannot see: the Secret was in the file with placeholder values (it is now created by the deploy script from real random values, and the pods fail loudly without it); no container had a security context (all now drop every capability, forbid privilege escalation, require non-root and use the runtime seccomp profile); nothing restricted network traffic (four NetworkPolicies now allow only router to frontend to backend to database, and the labels, ports and Service selectors were cross-checked); the backend had no startup probe and a 90-second guess for a slow first start; and the two images this project builds were tagged `:latest`.
-- The Red Hat PostgreSQL image keeps its floating `:latest` tag: a pinned tag could not be verified from this machine (the registry needs a login), and a wrong one would stop the database from starting.
-- [`deploy/deploy-openshift.sh`](deploy/deploy-openshift.sh) creates the secrets, builds the images in the cluster, applies the manifest and then **prints the evidence**: pods, route, health, a real sign-in through the public URL, row counts out of the database pod, and a network-policy probe. The probe reports `BLOCKED`, `REACHABLE` or `INCONCLUSIVE` and only counts a real connection timeout as the policy working; its classification was tested locally against open, closed, unresolvable and non-routable targets.
-- **It has not been applied to a cluster.** No cluster was available. This remains the one open item from the first review. Running `deploy/deploy-openshift.sh` on the free Red Hat Developer Sandbox produces the evidence.
+- The public SCLorg PostgreSQL 16 image is pinned by digest and was **pulled and run on OpenShift**, reporting PostgreSQL 16.15. Its 2 GiB persistent volume is bound. All tables retained identical row counts and data hashes after database and backend restarts.
+- Sandbox compatibility fixes remove the cluster-level Namespace object, give nginx's generated configuration group-0 write permission, use a numeric non-root backend UID, normalize the Maven wrapper's Windows line endings in the image build, and exclude local build/dependency directories from binary uploads.
+- [`deploy/deploy-openshift.sh`](deploy/deploy-openshift.sh), also available through the Windows `.ps1` entry point, creates random secrets, builds unique image tags, requires successful builds/rollouts, validates against the actual server, then applies the manifest. It asserts API/TLS/security results through the public route and compares every database table's count and data hash across database and backend restarts. NetworkPolicy enforcement requires both a successful allowed connection and an actual timeout from an unrelated pod; inconclusive probes fail the run. Evidence is saved automatically with no tokens/passwords printed by the checks.
+- **57 public-route checks passed** and a real Chromium session verified desktop/mobile rendering, no page errors and no mobile overflow. All three application containers ran as OpenShift-assigned non-root UID 1003930000. [Results and screenshots](docs/evidence/openshift-2026-11-20/README.md).
+- **A real security gap was found and fixed:** the Sandbox's managed `allow-same-namespace` rule overrode the restrictive NetworkPolicies because allows are additive. The script now verifies that baseline, saves its original configuration and excludes only bookstore pods from its broad selector. The backend-labelled probe connected; the unrelated probe timed out. The original failed result and passing rerun are preserved. Other workloads retain the baseline's previous behavior. Platform reconciliation may restore its defaults, so rerun validation after platform changes.
 
-### Still not verified
+### Remaining validation limits
 
-- **A live OpenShift or Kubernetes cluster**, as above. That includes the `Route`, image builds in the cluster, the NetworkPolicies being enforced, and the application running as OpenShift's arbitrary non-root user.
-- **The container images.** Neither Dockerfile has been built or run here.
+- The **standalone Docker Compose stack** and Docker-specific verification script were not run; local Docker is unavailable. Both project Dockerfiles were built and their images run on OpenShift instead.
 - The automated test generator named on slide 11 (ICA Agent) was **not** used. The tests in this repository were written directly. If you used the ICA Agent, add that to the journal; otherwise say so honestly in the video.
 
 ---
@@ -190,19 +200,20 @@ What is protected, how, and how it was checked. The **limits** are listed as pla
 | Payment data | Card number, expiry and CVV are validated and discarded. Only the last four digits and a gateway reference are stored. Nothing sensitive is logged. | Code review, `PaymentGatewayTest` |
 | Money integrity | Totals come from the server only. Payment is validated **before** stock, points or wallet change. Refunds cannot exceed what was paid. | `OrderServiceTest`, `RefundCalculatorTest` |
 | Input validation | Every request body is validated (lengths, ranges, required fields, allowed values). | Integration tests |
-| Containers and secrets | The backend runs as a non-root user and the frontend uses the unprivileged nginx image. No `.env` or key is tracked in git; the OpenShift manifest ships `CHANGE_ME` placeholders that must be replaced. | Review of the Dockerfiles, manifest and `git ls-files` |
+| Containers and secrets | Non-root containers drop capabilities and forbid privilege escalation. The manifest contains Secret references only; the deployment generates random secrets and preserves existing ones. No `.env` or key is tracked in git. | Actual OpenShift container UIDs, restricted SCC contexts, rollout status and immutable image IDs captured in cluster evidence |
+| Runtime checks on a live cluster | API authentication/authorization/ownership, token forgery, logout, brute-force limiting, validation, headers, TLS and network isolation exercised through real running containers | 57 public-route assertions and positive/negative network probes passed; captured JSON and command output |
 
 ### Known limits (not hidden)
 
-- **The demo accounts and the demo JWT secret are public.** The `H2` quick-start profile is allowed to use them so it runs with no setup; the `postgres` profile refuses the secret, but the demo user and the demo administrator (`admin@bookworm.example`) are in the seed data. **Remove them before any real deployment.**
+- **The demo accounts and the demo JWT secret are public.** The `H2` quick-start profile is allowed to use them so it runs with no setup; the `postgres` profile refuses the secret, but the demo user and the demo administrator (`admin@bookworm.example`) are in the seed data. The Sandbox is a synthetic demonstration. **Remove demo accounts before deploying with real users or data.**
 - **CSRF protection is switched off.** That is the usual choice for an API that authenticates with a bearer token in a header and keeps no cookies, but it should be revisited if cookies are ever introduced.
 - **The token is kept in the browser's `localStorage`**, so a script injected into the page could read it. The frontend uses no `dangerouslySetInnerHTML`, `innerHTML` or `eval`, and the API sets a strict CSP, which lowers the risk; an httpOnly cookie would remove it.
 - **The login rate limiter is in memory**, so it is per instance and resets on restart. That is right for the single-replica deployment here; several replicas would need a shared store.
 - **Tokens cannot be revoked per user**, only per token: changing a password does not sign out other sessions.
 - **There is no rate limit outside sign-in**, no account lockout notification, and no multi-factor authentication.
 - **TLS is not terminated by the application.** On OpenShift the Route does it (edge termination, HTTP redirected); the local Docker setup is plain HTTP.
-- **No dependency or image vulnerability scan was run** here.
-- **The Red Hat database image is not pinned to an exact version** (see above).
+- **Production frontend dependency audit:** `npm audit --omit=dev` reported zero vulnerabilities. The build reported two development-tool advisories; these were not remediated in this revision. Backend dependencies and full container images were not vulnerability-scanned.
+- **The public PostgreSQL image is pinned by digest** and was pulled and run on the live cluster. The Sandbox's managed baseline policy may be reconciled by the platform; rerun the probe after platform configuration changes.
 - **Payments are simulated.** No real processor is involved, so none of the controls above has been exercised against one.
 
 ---
@@ -225,7 +236,7 @@ Demo account: `alex.dev@ibm.com` / `Password123!` (the **Use demo account** butt
 
 **Prove it on PostgreSQL** (needs Docker): `deploy/verify-postgres.sh` starts a throwaway PostgreSQL 16, boots the backend on it, replays the API collection, restarts the backend and checks nothing changed.
 
-**Deploy to OpenShift** (needs `oc` and a cluster, for example the free Red Hat Developer Sandbox): `oc login ...` then `deploy/deploy-openshift.sh` (pass your sandbox namespace as the first argument). It prints the evidence at the end.
+**Deploy to OpenShift** (free Developer Sandbox supported): follow [docs/RESUBMISSION.md](docs/RESUBMISSION.md). On Windows, run `deploy/setup-openshift.ps1`, connect locally, then `deploy/deploy-openshift.ps1 -Namespace YOUR_PROJECT-dev`. It saves the evidence automatically.
 
 **PostgreSQL via Docker**
 

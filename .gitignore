@@ -15,3 +15,7 @@ dist/
 *.pptx
 Screenshot*.png
 frontend/dist/
+.tools/
+deploy/evidence/
+__pycache__/
+/resubmission/

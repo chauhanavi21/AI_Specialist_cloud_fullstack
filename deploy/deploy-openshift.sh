@@ -1,106 +1,177 @@
 #!/usr/bin/env bash
-# Deploys the bookstore to OpenShift (IBM ROKS, AWS ROSA, or the free Red Hat Developer Sandbox) and then PROVES it works.
-#
-#   oc login --token=... --server=...        # once, from the cluster's "Copy login command"
-#   deploy/deploy-openshift.sh [namespace]   # default namespace: bookstore-capstone
-#
-# The Developer Sandbox gives you a namespace you cannot create or rename: pass its name as the first argument
-# (for example `deploy/deploy-openshift.sh yourname-dev`) and the script will use it instead of bookstore-capstone.
-#
-# Every step stops the script on failure. At the end it prints the evidence a reviewer asks for: pods running,
-# the route, a health check, a real sign-in through the public URL, and a row count read out of the database.
+# Deploy only into the project the user supplies. Build remotely: no local Docker or Java required.
+# Usage: oc login ... (locally, never in a recording), then bash deploy/deploy-openshift.sh YOUR_PROJECT
 set -euo pipefail
-
-NS="${1:-bookstore-capstone}"
-TAG="v3"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-MANIFEST="$ROOT/deploy/k8s/bookstore-roks-deployment.yaml"
-
-say() { printf '\n\033[1m== %s\033[0m\n' "$*"; }
-need() { command -v "$1" >/dev/null 2>&1 || { echo "missing required tool: $1" >&2; exit 1; }; }
-
-need oc; need openssl; need curl
-oc whoami >/dev/null 2>&1 || { echo "not logged in: run 'oc login ...' first" >&2; exit 1; }
-
-say "1. Namespace ($NS)"
-if oc get namespace "$NS" >/dev/null 2>&1 || oc get project "$NS" >/dev/null 2>&1; then
-  echo "using existing namespace $NS"
-else
-  oc create namespace "$NS"
-fi
+NS="${1:?Pass the existing project/namespace from your OpenShift console}"
+[[ "$NS" =~ ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$ && ${#NS} -le 63 ]] || { echo 'Invalid namespace' >&2; exit 1; }
+TAG="${IMAGE_TAG:-evidence-$(date -u +%Y%m%d%H%M%S)}"
+[[ "$TAG" =~ ^[a-zA-Z0-9_][a-zA-Z0-9_.-]{0,127}$ ]] || { echo 'Invalid IMAGE_TAG' >&2; exit 1; }
+PYTHON="${PYTHON:-python}"
+for tool in oc openssl curl "$PYTHON"; do command -v "$tool" >/dev/null || { echo "Missing tool: $tool" >&2; exit 1; }; done
+oc whoami >/dev/null 2>&1 || { echo 'Run oc login locally using Copy login command in the console.' >&2; exit 1; }
+# Sandbox users can use their existing project; they cannot create or update Namespace objects.
 oc project "$NS" >/dev/null
+OUT="$ROOT/deploy/evidence/openshift-$(date -u +%Y%m%dT%H%M%SZ)"
+mkdir -p "$OUT"
+exec > >(tee "$OUT/deployment.txt") 2>&1
+say() { printf '\n== %s\n' "$*"; }
+ocn() { oc -n "$NS" "$@"; }
+BACKEND_STOPPED=false
+on_exit() {
+  local rc=$?
+  if "$BACKEND_STOPPED"; then ocn scale deployment/bookstore-backend --replicas=1 || true; fi
+  if [ "$rc" -ne 0 ]; then
+    echo "FAILED (exit $rc). Evidence: $OUT"
+    ocn get pods || true
+    ocn get events --sort-by=.lastTimestamp | tail -20 || true
+  fi
+  exit "$rc"
+}
+trap on_exit EXIT
 
-say "2. Secrets (created once; never printed, never stored in git)"
-if oc get secret bookstore-secrets >/dev/null 2>&1; then
-  echo "bookstore-secrets already exists: keeping it (delete it to rotate)"
+say '1. Deployment identity and quota'
+date -u +%FT%TZ
+git -C "$ROOT" rev-parse HEAD
+git -C "$ROOT" status --short
+oc version
+ocn get resourcequota
+printf 'Project: %s\nBuild tag: %s\n' "$NS" "$TAG"
+
+say '2. Secrets (random values, never printed or saved to the evidence)'
+if ocn get secret bookstore-secrets >/dev/null 2>&1; then
+  echo 'Keeping existing bookstore-secrets'
 else
-  oc create secret generic bookstore-secrets \
+  ocn create secret generic bookstore-secrets \
     --from-literal=postgres-user=bookstore_user \
-    --from-literal=postgres-password="$(openssl rand -base64 24 | tr -d '/+=\r\n')" \
+    --from-literal=postgres-password="$(openssl rand -hex 24)" \
     --from-literal=jwt-secret="$(openssl rand -base64 64 | tr -d '\r\n')"
 fi
 
-say "3. Build the two images inside the cluster"
+say '3. Build images inside OpenShift (or verify explicitly selected existing image tags)'
 for app in backend frontend; do
-  oc get imagestream "bookstore-$app" >/dev/null 2>&1 || oc create imagestream "bookstore-$app"
-  if ! oc get buildconfig "bookstore-$app" >/dev/null 2>&1; then
-    oc new-build --name "bookstore-$app" --binary --strategy=docker --to "bookstore-$app:$TAG" >/dev/null
+  if [ "${REUSE_IMAGES:-0}" = 1 ]; then
+    [ -n "${IMAGE_TAG:-}" ] || { echo 'REUSE_IMAGES=1 requires the exact existing IMAGE_TAG'; exit 1; }
+    ocn get imagestreamtag "bookstore-$app:$TAG" -o jsonpath='{.image.dockerImageReference}{"\n"}'
+    continue
   fi
-  oc start-build "bookstore-$app" --from-dir="$ROOT/$app" --follow
+  ocn get imagestream "bookstore-$app" >/dev/null 2>&1 || ocn create imagestream "bookstore-$app"
+  if ! ocn get buildconfig "bookstore-$app" >/dev/null 2>&1; then
+    ocn new-build --name "bookstore-$app" --binary --strategy=docker --to "bookstore-$app:$TAG" >/dev/null
+  fi
+  # Updating an existing BuildConfig is essential: otherwise reruns build into an old tag.
+  ocn patch buildconfig "bookstore-$app" --type=merge \
+    -p "{\"spec\":{\"output\":{\"to\":{\"kind\":\"ImageStreamTag\",\"name\":\"bookstore-$app:$TAG\"}}}}" >/dev/null
+  # .dockerignore excludes target, node_modules, dist, logs and local environment files.
+  ocn start-build "bookstore-$app" --from-dir="$ROOT/$app" \
+    --exclude='(^|/)(\.git|node_modules|target|dist)(/|$)|(^|/)\.env[^/]*$|\.log$' --follow --wait
 done
 
-say "4. Apply the manifest into $NS"
-# The manifest names the namespace bookstore-capstone; rewrite it when a different one was requested.
-sed "s/bookstore-capstone/$NS/g" "$MANIFEST" | oc apply -f -
-
-say "5. Wait for everything to be ready"
-oc rollout status statefulset/bookstore-postgres --timeout=300s
-oc rollout status deployment/bookstore-backend --timeout=420s
-oc rollout status deployment/bookstore-frontend --timeout=180s
-
-say "6. Evidence"
-oc get pods -o wide
-echo
-HOST="$(oc get route bookstore-route -o jsonpath='{.spec.host}')"
+say '4. Scope the Sandbox baseline policy, then validate and apply the manifest'
+# NetworkPolicies are additive. The Sandbox's managed allow-same-namespace rule would otherwise override isolation.
+# Exclude only our three application labels from that broad rule, preserving its behavior for every other workload.
+ocn get networkpolicy allow-same-namespace --ignore-not-found -o json > "$OUT/sandbox-policy-before.json"
+if [ -s "$OUT/sandbox-policy-before.json" ]; then
+  STATE="$("$PYTHON" - "$OUT/sandbox-policy-before.json" <<'PY'
+import json,sys
+p=json.load(open(sys.argv[1],encoding='utf-8-sig'))
+assert p['metadata'].get('labels',{}).get('toolchain.dev.openshift.com/provider')=='codeready-toolchain', 'Refusing to modify an unfamiliar baseline policy'
+selector={'matchExpressions':[{'key':'app','operator':'NotIn','values':['bookstore-frontend','bookstore-backend','bookstore-postgres']}]}
+actual=p['spec'].get('podSelector',{})
+assert actual in ({},selector), 'Baseline has a custom selector; review it manually'
+assert p['spec']['ingress']==[{'from':[{'podSelector':{}}]}], 'Baseline ingress differs; review it manually'
+print('patch' if actual=={} else 'already-excluded')
+PY
+)"
+  if [ "$STATE" = patch ]; then
+    ocn patch networkpolicy allow-same-namespace --type=json --patch-file "$ROOT/deploy/sandbox-policy-exclusion.json" --dry-run=server
+    ocn patch networkpolicy allow-same-namespace --type=json --patch-file "$ROOT/deploy/sandbox-policy-exclusion.json"
+  else
+    echo 'Bookstore pods are already excluded from the broad Sandbox baseline.'
+  fi
+  ocn get networkpolicy allow-same-namespace -o json > "$OUT/sandbox-policy-after.json"
+fi
+sed -e "s/bookstore-capstone/$NS/g" -e "s/:v3$/:$TAG/" \
+  "$ROOT/deploy/k8s/bookstore-roks-deployment.yaml" > "$OUT/applied-manifest.yaml"
+ocn apply --dry-run=server -f "$OUT/applied-manifest.yaml"
+ocn apply -f "$OUT/applied-manifest.yaml"
+ocn rollout status statefulset/bookstore-postgres --timeout=420s
+ocn rollout status deployment/bookstore-backend --timeout=600s
+ocn rollout status deployment/bookstore-frontend --timeout=300s
+ocn get pods -o wide
+ocn get route bookstore-route
+ocn get deployments,statefulsets,services,networkpolicies,pvc -o wide > "$OUT/resources.txt"
+# Record the immutable image IDs actually running, not just the requested build tags.
+ocn get pods -o jsonpath='{range .items[*]}{.metadata.name}{range .status.containerStatuses[*]}{"\t"}{.imageID}{end}{"\n"}{end}' > "$OUT/images.txt"
+HOST="$(ocn get route bookstore-route -o jsonpath='{.spec.host}')"
 URL="https://$HOST"
-echo "public URL: $URL"
+printf 'Public URL: %s\n' "$URL"
+curl --fail --silent --show-error --retry 12 --retry-delay 5 --retry-all-errors --max-time 20 \
+  "$URL/api/v1/actuator/health" > "$OUT/health.json"
 
-echo; echo "-- health through the public route (expect {\"status\":\"UP\"})"
-curl -fsS "$URL/api/v1/actuator/health"; echo
+say '5. API, TLS and security checks through the public route'
+"$PYTHON" "$ROOT/deploy/verify-api.py" --base-url "$URL/api/v1" --require-https --frontend --output "$OUT/api-security.json"
 
-echo; echo "-- the route redirects plain http to https"
-curl -s -o /dev/null -w "http -> %{http_code} %{redirect_url}\n" "http://$HOST/"
+say '6. Real PostgreSQL version, row fingerprints and persistence after restarting both database and backend'
+# The application is stopped before the snapshot so no requests can change the database during the comparison.
+ocn scale deployment/bookstore-backend --replicas=0
+BACKEND_STOPPED=true
+ocn wait --for=delete pod -l app=bookstore-backend --timeout=180s
+dbquery() {
+  ocn exec -i statefulset/bookstore-postgres -- sh -c \
+    'PGPASSWORD="$POSTGRESQL_PASSWORD" psql -X -h 127.0.0.1 -U "$POSTGRESQL_USER" -d bookstoredb -v ON_ERROR_STOP=1 -t -A' \
+    < "$1"
+}
+dbquery "$ROOT/deploy/database-evidence.sql" > "$OUT/database-before.txt"
+cat "$OUT/database-before.txt"
+grep -qx 'application_tables=22' "$OUT/database-before.txt"
+grep -qx 'application_role_is_not_superuser=true' "$OUT/database-before.txt"
+grep -qx 'stored_passwords_are_bcrypt=true' "$OUT/database-before.txt"
+ocn rollout restart statefulset/bookstore-postgres
+ocn rollout status statefulset/bookstore-postgres --timeout=420s
+ocn scale deployment/bookstore-backend --replicas=1
+ocn rollout status deployment/bookstore-backend --timeout=600s
+BACKEND_STOPPED=false
+dbquery "$ROOT/deploy/database-evidence.sql" > "$OUT/database-after.txt"
+diff -u "$OUT/database-before.txt" "$OUT/database-after.txt"
+curl -fsS --retry 12 --retry-delay 5 --retry-all-errors "$URL/api/v1/actuator/health" > "$OUT/health-after-restart.json"
+echo 'PASS: all table row counts and data hashes survived database and application restart.'
 
-echo; echo "-- the catalogue is served from PostgreSQL (expect 15 public books for a guest)"
-curl -fsS "$URL/api/v1/books?size=1" | grep -o '"totalElements":[0-9]*'
+say '7. NetworkPolicy enforcement (DNS, an allowed connection, then a denied connection)'
+# Use the same Python image for positive and negative controls. This avoids confusing a missing tool or bad DNS with isolation.
+PROBE='import socket,sys; socket.getaddrinfo("bookstore-postgres",5432); s=socket.socket(); s.settimeout(8)
+try:
+ s.connect(("bookstore-postgres",5432)); print("RESULT=REACHABLE",flush=True); sys.exit(0)
+except TimeoutError:
+ print("RESULT=BLOCKED",flush=True); sys.exit(0)
+except OSError:
+ print("RESULT=ERROR",flush=True); sys.exit(3)'
+# The two pods have identical runtime settings and differ only in the app label selected by the NetworkPolicy.
+probe() {
+  local label="$1" name="bookstore-probe-$(date +%s)-$RANDOM"
+  ocn run "$name" --restart=Never --image=registry.access.redhat.com/ubi9/python-311:latest \
+    --labels="app=$label" --dry-run=client -o json --command -- python3 -c "$PROBE" | \
+    "$PYTHON" -c 'import json,sys
+p=json.load(sys.stdin)
+p["spec"]["securityContext"]={"runAsNonRoot":True,"seccompProfile":{"type":"RuntimeDefault"}}
+c=p["spec"]["containers"][0]
+c["securityContext"]={"allowPrivilegeEscalation":False,"capabilities":{"drop":["ALL"]}}
+c["resources"]={"requests":{"cpu":"10m","memory":"64Mi"},"limits":{"cpu":"100m","memory":"128Mi"}}
+print(json.dumps(p))' | ocn create -f -
+  if ! ocn wait --for=jsonpath='{.status.phase}'=Succeeded "pod/$name" --timeout=180s; then
+    ocn describe "pod/$name"
+    ocn logs "$name" || true
+    ocn delete "pod/$name" --wait=false
+    return 1
+  fi
+  ocn logs "$name"
+  ocn delete "pod/$name" --wait=false
+}
+probe bookstore-backend | tee "$OUT/network-allowed.txt"
+grep -q '^RESULT=REACHABLE' "$OUT/network-allowed.txt" || { echo 'Allowed network probe failed; isolation result is inconclusive.'; exit 1; }
+probe unrelated | tee "$OUT/network-denied.txt"
+grep -q '^RESULT=BLOCKED' "$OUT/network-denied.txt" || { echo 'Denied network probe failed or was inconclusive.'; exit 1; }
 
-echo; echo "-- a guest cannot reach administration (expect 401) and members-only books are hidden (expect 404)"
-curl -s -o /dev/null -w "GET /admin/overview as a guest -> %{http_code}\n" "$URL/api/v1/admin/overview"
-curl -s -o /dev/null -w "GET /books/16 as a guest       -> %{http_code}\n" "$URL/api/v1/books/16"
-
-echo; echo "-- sign in through the public URL, then call a protected route"
-TOKEN="$(curl -fsS -X POST "$URL/api/v1/auth/login" -H 'Content-Type: application/json' \
-  -d '{"email":"alex.dev@ibm.com","password":"Password123!"}' | sed -E 's/.*"token":"([^"]+)".*/\1/')"
-curl -s -o /dev/null -w "GET /cart with the token -> %{http_code} (expect 200)\n" "$URL/api/v1/cart" -H "Authorization: Bearer $TOKEN"
-
-echo; echo "-- the data really is in the database pod (row counts straight from PostgreSQL)"
-oc exec statefulset/bookstore-postgres -- bash -c \
-  'psql -U "$POSTGRESQL_USER" -d bookstoredb -t -A -c "select '"'"'books='"'"'||count(*) from books" -c "select '"'"'users='"'"'||count(*) from users" -c "select '"'"'tables='"'"'||count(*) from information_schema.tables where table_schema='"'"'public'"'"'"'
-
-echo; echo "-- the database is NOT reachable from a pod that is not the backend (NetworkPolicy)"
-# A bare "it failed, so it is blocked" would also pass when the probe could not run at all. So the probe reports one of
-# three different outcomes, and only an actual connection timeout counts as the policy working:
-#   NO-DNS      the name did not resolve (the probe is invalid, not a policy result)
-#   REACHABLE   the connection opened (the policy is NOT enforced: a real finding)
-#   BLOCKED     the name resolved, the address answered no TCP handshake within 5 seconds (the policy is working)
-PROBE='if command -v getent >/dev/null 2>&1; then getent hosts bookstore-postgres >/dev/null 2>&1 || { echo "RESULT=NO-DNS"; exit 0; }; fi
-if timeout 5 bash -c "exec 3<>/dev/tcp/bookstore-postgres/5432" 2>/dev/null; then echo "RESULT=REACHABLE"; else rc=$?; [ "$rc" = 124 ] && echo "RESULT=BLOCKED" || echo "RESULT=ERROR-$rc"; fi'
-RESULT="$(oc run netpol-probe --rm -i --restart=Never --image=registry.access.redhat.com/ubi9/ubi --command -- bash -c "$PROBE" 2>&1 | grep -o 'RESULT=[A-Z0-9-]*' | tail -1 || true)"
-case "$RESULT" in
-  RESULT=BLOCKED)   echo "OK: the database cannot be reached from an unrelated pod (connection timed out, as the NetworkPolicy intends)";;
-  RESULT=REACHABLE) echo "FINDING: an unrelated pod CAN reach the database. NetworkPolicies are not being enforced on this cluster."; exit 1;;
-  RESULT=NO-DNS)    echo "INCONCLUSIVE: the probe pod could not resolve the database name, so this proves nothing about the policy";;
-  *)                echo "INCONCLUSIVE: the probe pod did not produce a result (${RESULT:-no output}). Check 'oc get events'; this proves nothing about the policy";;
-esac
-
-say "Done. Save this output (and screenshots of 'oc get pods' and the app at $URL) as your deployment evidence."
+say 'PASS: deployment, API security, PostgreSQL persistence and network isolation verified'
+printf 'Evidence: %s\nPublic URL: %s\n' "$OUT" "$URL"
+echo 'Review the evidence and record the running application before resubmitting. This is a temporary demo with public demo accounts.'

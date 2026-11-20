@@ -1,0 +1,6 @@
+bookstore-backend-1-build	quay.io/openshift-release-dev/ocp-v4.0-art-dev@sha256:67151539d859c826c910054fede65d5f04c8b628d3fc3299bc7cd3e6a720ff4c
+bookstore-backend-94bc8689b-69fgq	image-registry.openshift-image-registry.svc:5000/avi-chauhan-dev/bookstore-backend@sha256:50fcd96530e54fb66ded144e8e796826747a1057a6b6e0bee50b50d2cc8a9776
+bookstore-frontend-1-build	quay.io/openshift-release-dev/ocp-v4.0-art-dev@sha256:67151539d859c826c910054fede65d5f04c8b628d3fc3299bc7cd3e6a720ff4c
+bookstore-frontend-b86d8d7df-4gglt	image-registry.openshift-image-registry.svc:5000/avi-chauhan-dev/bookstore-frontend@sha256:a3252bc468765c98d7972412cce13b69aca723c131ffedba34be188852a8b2d6
+bookstore-frontend-b86d8d7df-fbf7c	image-registry.openshift-image-registry.svc:5000/avi-chauhan-dev/bookstore-frontend@sha256:a3252bc468765c98d7972412cce13b69aca723c131ffedba34be188852a8b2d6
+bookstore-postgres-0	quay.io/sclorg/postgresql-16-c9s@sha256:56a437f04fbd3726879dbebaf9d751c58b7c41962b326e1b3352f515bf9f1892

@@ -1,0 +1,11 @@
+[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 3.320 s -- in com.ibm.capstone.bookstore.BookServiceTest
+[INFO] Tests run: 14, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 17.73 s -- in com.ibm.capstone.bookstore.BookstoreApiIntegrationTest
+[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.074 s -- in com.ibm.capstone.bookstore.JwtSecretGuardTest
+[INFO] Tests run: 14, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 4.233 s -- in com.ibm.capstone.bookstore.LifecycleApiIntegrationTest
+[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.285 s -- in com.ibm.capstone.bookstore.LoginAttemptLimiterTest
+[INFO] Tests run: 12, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.100 s -- in com.ibm.capstone.bookstore.OrderServiceTest
+[INFO] Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.013 s -- in com.ibm.capstone.bookstore.PaymentGatewayTest
+[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0 s -- in com.ibm.capstone.bookstore.PricingAndCouponTest
+[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.011 s -- in com.ibm.capstone.bookstore.RefundCalculatorTest
+[INFO] Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 2.529 s -- in com.ibm.capstone.bookstore.SecurityIntegrationTest
+[INFO] Tests run: 79, Failures: 0, Errors: 0, Skipped: 0

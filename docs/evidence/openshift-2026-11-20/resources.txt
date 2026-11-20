@@ -1,0 +1,30 @@
+NAME                                 READY   UP-TO-DATE   AVAILABLE   AGE     CONTAINERS   IMAGES                                                                                                        SELECTOR
+deployment.apps/bookstore-backend    1/1     1            1           4m20s   backend      image-registry.openshift-image-registry.svc:5000/avi-chauhan-dev/bookstore-backend:evidence-20261120192652    app=bookstore-backend
+deployment.apps/bookstore-frontend   2/2     2            2           4m20s   frontend     image-registry.openshift-image-registry.svc:5000/avi-chauhan-dev/bookstore-frontend:evidence-20261120192652   app=bookstore-frontend
+
+NAME                                  READY   AGE     CONTAINERS   IMAGES
+statefulset.apps/bookstore-postgres   1/1     4m21s   postgres     quay.io/sclorg/postgresql-16-c9s@sha256:56a437f04fbd3726879dbebaf9d751c58b7c41962b326e1b3352f515bf9f1892
+
+NAME                         TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)    AGE     SELECTOR
+service/bookstore-backend    ClusterIP   172.30.139.54   <none>        8080/TCP   4m20s   app=bookstore-backend
+service/bookstore-frontend   ClusterIP   172.30.30.240   <none>        8080/TCP   4m20s   app=bookstore-frontend
+service/bookstore-postgres   ClusterIP   172.30.59.97    <none>        5432/TCP   4m21s   app=bookstore-postgres
+
+NAME                                                                             POD-SELECTOR                                                          AGE
+networkpolicy.networking.k8s.io/allow-backend-to-database                        app=bookstore-postgres                                                4m19s
+networkpolicy.networking.k8s.io/allow-from-codeready-workspaces-operator         <none>                                                                21m
+networkpolicy.networking.k8s.io/allow-from-console-namespaces                    <none>                                                                21m
+networkpolicy.networking.k8s.io/allow-from-dev-sandbox-managed-ns                <none>                                                                21m
+networkpolicy.networking.k8s.io/allow-from-olm-namespaces                        <none>                                                                21m
+networkpolicy.networking.k8s.io/allow-from-openshift-ingress                     <none>                                                                21m
+networkpolicy.networking.k8s.io/allow-from-openshift-monitoring                  <none>                                                                21m
+networkpolicy.networking.k8s.io/allow-from-openshift-virtualization-namespaces   <none>                                                                21m
+networkpolicy.networking.k8s.io/allow-from-redhat-ods-app-to-mariadb             app=mariadb-dspa                                                      21m
+networkpolicy.networking.k8s.io/allow-from-redhat-ods-app-to-mm                  modelmesh-service=modelmesh-serving                                   21m
+networkpolicy.networking.k8s.io/allow-frontend-to-backend                        app=bookstore-backend                                                 4m19s
+networkpolicy.networking.k8s.io/allow-router-to-frontend                         app=bookstore-frontend                                                4m19s
+networkpolicy.networking.k8s.io/allow-same-namespace                             app notin (bookstore-backend,bookstore-frontend,bookstore-postgres)   21m
+networkpolicy.networking.k8s.io/default-deny-ingress                             app in (bookstore-backend,bookstore-frontend,bookstore-postgres)      4m20s
+
+NAME                                              STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS   VOLUMEATTRIBUTESCLASS   AGE     VOLUMEMODE
+persistentvolumeclaim/data-bookstore-postgres-0   Bound    pvc-e41caae8-e737-4611-94c3-089eb5ae00c0   2Gi        RWO            gp3            <unset>                 4m21s   Filesystem

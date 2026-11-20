@@ -1,0 +1,8 @@
+[
+  {"op": "test", "path": "/spec/podSelector", "value": {}},
+  {"op": "replace", "path": "/spec/podSelector", "value": {
+    "matchExpressions": [{"key": "app", "operator": "NotIn", "values": [
+      "bookstore-frontend", "bookstore-backend", "bookstore-postgres"
+    ]}]
+  }}
+]

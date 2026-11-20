@@ -1,0 +1,20 @@
+NAME                                     READY   STATUS      RESTARTS   AGE     IP              NODE                          NOMINATED NODE   READINESS GATES
+pod/bookstore-backend-1-build            0/1     Completed   0          9m39s   10.130.29.247   ip-10-0-45-122.ec2.internal   <none>           <none>
+pod/bookstore-backend-94bc8689b-qmdhb    1/1     Running     0          119s    10.130.28.24    ip-10-0-45-122.ec2.internal   <none>           <none>
+pod/bookstore-frontend-1-build           0/1     Completed   0          7m58s   10.130.29.254   ip-10-0-45-122.ec2.internal   <none>           <none>
+pod/bookstore-frontend-b86d8d7df-4gglt   1/1     Running     0          7m      10.128.31.16    ip-10-0-16-166.ec2.internal   <none>           <none>
+pod/bookstore-frontend-b86d8d7df-fbf7c   1/1     Running     0          7m      10.131.22.203   ip-10-0-79-186.ec2.internal   <none>           <none>
+pod/bookstore-postgres-0                 1/1     Running     0          2m20s   10.130.28.21    ip-10-0-45-122.ec2.internal   <none>           <none>
+
+NAME                                 READY   UP-TO-DATE   AVAILABLE   AGE   CONTAINERS   IMAGES                                                                                                        SELECTOR
+deployment.apps/bookstore-backend    1/1     1            1           7m    backend      image-registry.openshift-image-registry.svc:5000/avi-chauhan-dev/bookstore-backend:evidence-20261120192652    app=bookstore-backend
+deployment.apps/bookstore-frontend   2/2     2            2           7m    frontend     image-registry.openshift-image-registry.svc:5000/avi-chauhan-dev/bookstore-frontend:evidence-20261120192652   app=bookstore-frontend
+
+NAME                                  READY   AGE    CONTAINERS   IMAGES
+statefulset.apps/bookstore-postgres   1/1     7m1s   postgres     quay.io/sclorg/postgresql-16-c9s@sha256:56a437f04fbd3726879dbebaf9d751c58b7c41962b326e1b3352f515bf9f1892
+
+NAME                                              STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS   VOLUMEATTRIBUTESCLASS   AGE    VOLUMEMODE
+persistentvolumeclaim/data-bookstore-postgres-0   Bound    pvc-e41caae8-e737-4611-94c3-089eb5ae00c0   2Gi        RWO            gp3            <unset>                 7m1s   Filesystem
+
+NAME                                       HOST/PORT                                                            PATH   SERVICES             PORT   TERMINATION     WILDCARD
+route.route.openshift.io/bookstore-route   bookstore-route-avi-chauhan-dev.apps.rm1.0a51.p1.openshiftapps.com          bookstore-frontend   8080   edge/Redirect   None

@@ -1,0 +1,4 @@
+pod/bookstore-probe-1795203107-1449 created
+pod/bookstore-probe-1795203107-1449 condition met
+RESULT=REACHABLE
+pod "bookstore-probe-1795203107-1449" deleted from avi-chauhan-dev namespace

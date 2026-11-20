@@ -1,0 +1,297 @@
+{
+  "started_at": "2026-11-20T19:34:01.994501+00:00",
+  "base_url": "https://bookstore-route-avi-chauhan-dev.apps.rm1.0a51.p1.openshiftapps.com/api/v1",
+  "checks": [
+    {
+      "name": "GET /api/v1/actuator/health expects 200",
+      "passed": true,
+      "observed": 200
+    },
+    {
+      "name": "Database-backed application health is UP",
+      "passed": true,
+      "observed": null
+    },
+    {
+      "name": "GET /api/v1/books expects 200",
+      "passed": true,
+      "observed": 200
+    },
+    {
+      "name": "Public catalogue contains books",
+      "passed": true,
+      "observed": null
+    },
+    {
+      "name": "API header X-Content-Type-Options",
+      "passed": true,
+      "observed": "nosniff"
+    },
+    {
+      "name": "API header Referrer-Policy",
+      "passed": true,
+      "observed": "no-referrer"
+    },
+    {
+      "name": "API header X-Frame-Options",
+      "passed": true,
+      "observed": "DENY"
+    },
+    {
+      "name": "API content security policy",
+      "passed": true,
+      "observed": null
+    },
+    {
+      "name": "GET /api/v1/cart expects 401",
+      "passed": true,
+      "observed": 401
+    },
+    {
+      "name": "GET /api/v1/admin/overview expects 401",
+      "passed": true,
+      "observed": 401
+    },
+    {
+      "name": "GET /api/v1/books/16 expects 404",
+      "passed": true,
+      "observed": 404
+    },
+    {
+      "name": "GET /api/v1/h2-console/ expects 401",
+      "passed": true,
+      "observed": 401
+    },
+    {
+      "name": "GET /api/v1/actuator/env expects 401",
+      "passed": true,
+      "observed": 401
+    },
+    {
+      "name": "POST /api/v1/auth/login expects 200",
+      "passed": true,
+      "observed": 200
+    },
+    {
+      "name": "Sign-in returns a bearer token",
+      "passed": true,
+      "observed": null
+    },
+    {
+      "name": "GET /api/v1/cart expects 200",
+      "passed": true,
+      "observed": 200
+    },
+    {
+      "name": "GET /api/v1/books/16 expects 200",
+      "passed": true,
+      "observed": 200
+    },
+    {
+      "name": "GET /api/v1/admin/overview expects 403",
+      "passed": true,
+      "observed": 403
+    },
+    {
+      "name": "GET /api/v1/actuator/env expects 403",
+      "passed": true,
+      "observed": 403
+    },
+    {
+      "name": "GET /api/v1/h2-console/ expects 403",
+      "passed": true,
+      "observed": 403
+    },
+    {
+      "name": "GET /api/v1/auth/me expects 200",
+      "passed": true,
+      "observed": 200
+    },
+    {
+      "name": "Profile omits password fields",
+      "passed": true,
+      "observed": null
+    },
+    {
+      "name": "POST /api/v1/auth/login expects 200",
+      "passed": true,
+      "observed": 200
+    },
+    {
+      "name": "Sign-in returns a bearer token",
+      "passed": true,
+      "observed": null
+    },
+    {
+      "name": "GET /api/v1/admin/overview expects 200",
+      "passed": true,
+      "observed": 200
+    },
+    {
+      "name": "POST /api/v1/auth/login expects 200",
+      "passed": true,
+      "observed": 200
+    },
+    {
+      "name": "Sign-in returns a bearer token",
+      "passed": true,
+      "observed": null
+    },
+    {
+      "name": "GET /api/v1/orders/1 expects 404",
+      "passed": true,
+      "observed": 404
+    },
+    {
+      "name": "GET /api/v1/cart expects 401",
+      "passed": true,
+      "observed": 401
+    },
+    {
+      "name": "GET /api/v1/admin/overview expects 401",
+      "passed": true,
+      "observed": 401
+    },
+    {
+      "name": "GET /api/v1/cart expects 401",
+      "passed": true,
+      "observed": 401
+    },
+    {
+      "name": "GET /api/v1/admin/overview expects 401",
+      "passed": true,
+      "observed": 401
+    },
+    {
+      "name": "GET /api/v1/cart expects 401",
+      "passed": true,
+      "observed": 401
+    },
+    {
+      "name": "GET /api/v1/admin/overview expects 401",
+      "passed": true,
+      "observed": 401
+    },
+    {
+      "name": "GET /api/v1/books expects 200",
+      "passed": true,
+      "observed": 200
+    },
+    {
+      "name": "SQL-shaped search cannot bypass filtering",
+      "passed": true,
+      "observed": null
+    },
+    {
+      "name": "POST /api/v1/auth/register expects 400",
+      "passed": true,
+      "observed": 400
+    },
+    {
+      "name": "GET /api/v1/books/not-a-number expects 400",
+      "passed": true,
+      "observed": 400
+    },
+    {
+      "name": "Validation errors omit Java traces",
+      "passed": true,
+      "observed": null
+    },
+    {
+      "name": "POST /api/v1/auth/register expects 201",
+      "passed": true,
+      "observed": 201
+    },
+    {
+      "name": "New customer registration returns a token",
+      "passed": true,
+      "observed": null
+    },
+    {
+      "name": "GET /api/v1/auth/me expects 200",
+      "passed": true,
+      "observed": 200
+    },
+    {
+      "name": "POST /api/v1/auth/logout expects 200",
+      "passed": true,
+      "observed": 200
+    },
+    {
+      "name": "GET /api/v1/cart expects 401",
+      "passed": true,
+      "observed": 401
+    },
+    {
+      "name": "POST /api/v1/auth/login expects 401",
+      "passed": true,
+      "observed": 401
+    },
+    {
+      "name": "POST /api/v1/auth/login expects 401",
+      "passed": true,
+      "observed": 401
+    },
+    {
+      "name": "POST /api/v1/auth/login expects 401",
+      "passed": true,
+      "observed": 401
+    },
+    {
+      "name": "POST /api/v1/auth/login expects 401",
+      "passed": true,
+      "observed": 401
+    },
+    {
+      "name": "POST /api/v1/auth/login expects 401",
+      "passed": true,
+      "observed": 401
+    },
+    {
+      "name": "POST /api/v1/auth/login expects 429",
+      "passed": true,
+      "observed": 429
+    },
+    {
+      "name": "GET /api/v1/cart expects 200",
+      "passed": true,
+      "observed": 200
+    },
+    {
+      "name": "GET / expects 200",
+      "passed": true,
+      "observed": 200
+    },
+    {
+      "name": "Frontend serves the built React application",
+      "passed": true,
+      "observed": null
+    },
+    {
+      "name": "GET /assets/index-CnHOoEoF.js expects 200",
+      "passed": true,
+      "observed": 200
+    },
+    {
+      "name": "GET /orders expects 200",
+      "passed": true,
+      "observed": 200
+    },
+    {
+      "name": "GET / expects 302",
+      "passed": true,
+      "observed": 302
+    },
+    {
+      "name": "HTTP redirects to the same HTTPS host",
+      "passed": true,
+      "observed": null
+    }
+  ],
+  "passed": true,
+  "persistence_marker": {
+    "email": "evidence-51ba6fa177ca41f99ced3e452430a17c@example.test",
+    "user_id": 101
+  },
+  "finished_at": "2026-11-20T19:34:14.941093+00:00"
+}

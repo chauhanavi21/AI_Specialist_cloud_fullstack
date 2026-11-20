@@ -1,0 +1,126 @@
+[
+  {
+    "pod": "bookstore-backend-94bc8689b-qmdhb",
+    "security_constraint": "restricted-v2",
+    "pod_security_context": {
+      "fsGroup": 1003930000,
+      "seLinuxOptions": {
+        "level": "s0:c63,c12"
+      },
+      "seccompProfile": {
+        "type": "RuntimeDefault"
+      }
+    },
+    "containers": [
+      {
+        "name": "backend",
+        "security_context": {
+          "allowPrivilegeEscalation": false,
+          "capabilities": {
+            "drop": [
+              "ALL"
+            ]
+          },
+          "runAsNonRoot": true,
+          "runAsUser": 1003930000,
+          "seccompProfile": {
+            "type": "RuntimeDefault"
+          }
+        }
+      }
+    ]
+  },
+  {
+    "pod": "bookstore-frontend-b86d8d7df-4gglt",
+    "security_constraint": "restricted-v2",
+    "pod_security_context": {
+      "fsGroup": 1003930000,
+      "seLinuxOptions": {
+        "level": "s0:c63,c12"
+      },
+      "seccompProfile": {
+        "type": "RuntimeDefault"
+      }
+    },
+    "containers": [
+      {
+        "name": "frontend",
+        "security_context": {
+          "allowPrivilegeEscalation": false,
+          "capabilities": {
+            "drop": [
+              "ALL"
+            ]
+          },
+          "runAsNonRoot": true,
+          "runAsUser": 1003930000,
+          "seccompProfile": {
+            "type": "RuntimeDefault"
+          }
+        }
+      }
+    ]
+  },
+  {
+    "pod": "bookstore-frontend-b86d8d7df-fbf7c",
+    "security_constraint": "restricted-v2",
+    "pod_security_context": {
+      "fsGroup": 1003930000,
+      "seLinuxOptions": {
+        "level": "s0:c63,c12"
+      },
+      "seccompProfile": {
+        "type": "RuntimeDefault"
+      }
+    },
+    "containers": [
+      {
+        "name": "frontend",
+        "security_context": {
+          "allowPrivilegeEscalation": false,
+          "capabilities": {
+            "drop": [
+              "ALL"
+            ]
+          },
+          "runAsNonRoot": true,
+          "runAsUser": 1003930000,
+          "seccompProfile": {
+            "type": "RuntimeDefault"
+          }
+        }
+      }
+    ]
+  },
+  {
+    "pod": "bookstore-postgres-0",
+    "security_constraint": "restricted-v2",
+    "pod_security_context": {
+      "fsGroup": 1003930000,
+      "seLinuxOptions": {
+        "level": "s0:c63,c12"
+      },
+      "seccompProfile": {
+        "type": "RuntimeDefault"
+      }
+    },
+    "containers": [
+      {
+        "name": "postgres",
+        "security_context": {
+          "allowPrivilegeEscalation": false,
+          "capabilities": {
+            "drop": [
+              "ALL"
+            ]
+          },
+          "runAsNonRoot": true,
+          "runAsUser": 1003930000,
+          "seccompProfile": {
+            "type": "RuntimeDefault"
+          }
+        }
+      }
+    ]
+  }
+]

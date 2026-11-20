@@ -1,0 +1,347 @@
+# Bookstore on Red Hat OpenShift (IBM ROKS or AWS ROSA).
+#
+# Deploy with the script, which creates the secrets, builds the images and applies this file in the right order:
+#   deploy/deploy-openshift.sh
+#
+# Or by hand:
+#   1. oc project YOUR_EXISTING_PROJECT          (the Developer Sandbox provides one ending in -dev)
+#   2. create the Secret  (this file deliberately does NOT contain one, so it can never install placeholder credentials):
+#        oc create secret generic bookstore-secrets -n avi-chauhan-dev \
+#          --from-literal=postgres-user=bookstore_user \
+#          --from-literal=postgres-password="$(openssl rand -base64 24 | tr -d '/+=\r\n')" \
+#          --from-literal=jwt-secret="$(openssl rand -base64 64 | tr -d '\r\n')"
+#   3. build and push the two images into the cluster registry (see deploy/deploy-openshift.sh)
+#   4. oc apply -f deploy/k8s/bookstore-roks-deployment.yaml
+#
+# Without step 2 the pods stop with CreateContainerConfigError ("secret bookstore-secrets not found"), which is the
+# intended failure: the application also refuses to start with a weak or published JWT secret.
+#
+# This file has only namespaced resources: Sandbox users cannot manage Namespace objects.
+# Runtime validation is recorded by deploy/deploy-openshift.sh; a schema check alone does not prove deployment.
+# PostgreSQL with persistent storage
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: bookstore-postgres
+  namespace: avi-chauhan-dev
+spec:
+  serviceName: bookstore-postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app: bookstore-postgres
+  template:
+    metadata:
+      labels:
+        app: bookstore-postgres
+    spec:
+      containers:
+        - name: postgres
+          # Public SCLorg PostgreSQL 16 image; arbitrary-UID support without a registry subscription.
+          # Multi-architecture digest published by quay.io/sclorg/postgresql-16-c9s on 2026-11-18.
+          image: quay.io/sclorg/postgresql-16-c9s@sha256:56a437f04fbd3726879dbebaf9d751c58b7c41962b326e1b3352f515bf9f1892
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRESQL_DATABASE
+              value: bookstoredb
+            - name: POSTGRESQL_USER
+              valueFrom:
+                secretKeyRef:
+                  name: bookstore-secrets
+                  key: postgres-user
+            - name: POSTGRESQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: bookstore-secrets
+                  key: postgres-password
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/pgsql/data
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          readinessProbe:
+            exec:
+              command: ["/bin/sh", "-c", "pg_isready -U $POSTGRESQL_USER -d bookstoredb"]
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          livenessProbe:
+            exec:
+              command: ["/bin/sh", "-c", "pg_isready -U $POSTGRESQL_USER -d bookstoredb"]
+            initialDelaySeconds: 30
+            periodSeconds: 15
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 2Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: bookstore-postgres
+  namespace: avi-chauhan-dev
+spec:
+  selector:
+    app: bookstore-postgres
+  ports:
+    - port: 5432
+      targetPort: 5432
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bookstore-backend
+  namespace: avi-chauhan-dev
+  labels:
+    app: bookstore-backend
+spec:
+  # One replica: the Postgres seed/sequence reset runs at start-up, so a single instance seeds cleanly.
+  replicas: 1
+  # Startup adjusts seed identity sequences. Stop the old instance before seeding to avoid concurrent writers.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: bookstore-backend
+  template:
+    metadata:
+      labels:
+        app: bookstore-backend
+    spec:
+      containers:
+        - name: backend
+          image: image-registry.openshift-image-registry.svc:5000/avi-chauhan-dev/bookstore-backend:evidence-20261120192652
+          ports:
+            - containerPort: 8080
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: "postgres"
+            - name: SPRING_DATASOURCE_URL
+              value: "jdbc:postgresql://bookstore-postgres:5432/bookstoredb"
+            - name: SPRING_DATASOURCE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: bookstore-secrets
+                  key: postgres-user
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: bookstore-secrets
+                  key: postgres-password
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: bookstore-secrets
+                  key: jwt-secret
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "250m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+          # The JVM and the database scripts take a while to start. The startup probe gives it up to 5 minutes,
+          # and only then do the (tight) readiness and liveness probes take over, so a slow first start is not killed.
+          startupProbe:
+            httpGet:
+              path: /api/v1/actuator/health
+              port: 8080
+            periodSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            httpGet:
+              path: /api/v1/actuator/health
+              port: 8080
+            periodSeconds: 10
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /api/v1/actuator/health
+              port: 8080
+            periodSeconds: 20
+            failureThreshold: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: bookstore-backend
+  namespace: avi-chauhan-dev
+spec:
+  selector:
+    app: bookstore-backend
+  ports:
+    - port: 8080
+      targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bookstore-frontend
+  namespace: avi-chauhan-dev
+  labels:
+    app: bookstore-frontend
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: bookstore-frontend
+  template:
+    metadata:
+      labels:
+        app: bookstore-frontend
+    spec:
+      containers:
+        - name: frontend
+          image: image-registry.openshift-image-registry.svc:5000/avi-chauhan-dev/bookstore-frontend:evidence-20261120192652
+          ports:
+            - containerPort: 8080
+          env:
+            # nginx proxies /api/v1/ to this Service name
+            - name: BACKEND_HOST
+              value: bookstore-backend
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "128Mi"
+              cpu: "300m"
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: bookstore-frontend
+  namespace: avi-chauhan-dev
+spec:
+  selector:
+    app: bookstore-frontend
+  ports:
+    - port: 8080
+      targetPort: 8080
+---
+# OpenShift Route for ROKS / ROSA ingress
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: bookstore-route
+  namespace: avi-chauhan-dev
+spec:
+  to:
+    kind: Service
+    name: bookstore-frontend
+  port:
+    targetPort: 8080
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+---
+# Network isolation. Start from "nothing may talk to anything", then allow only the paths the app uses:
+#   internet -> OpenShift router -> frontend -> backend -> database
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: avi-chauhan-dev
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values: [bookstore-frontend, bookstore-backend, bookstore-postgres]
+  policyTypes: ["Ingress"]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-router-to-frontend
+  namespace: avi-chauhan-dev
+spec:
+  podSelector:
+    matchLabels:
+      app: bookstore-frontend
+  policyTypes: ["Ingress"]
+  ingress:
+    - from:
+        # OpenShift labels the namespace that runs the router (ingress controller) with this label.
+        - namespaceSelector:
+            matchLabels:
+              network.openshift.io/policy-group: ingress
+      ports:
+        - port: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-frontend-to-backend
+  namespace: avi-chauhan-dev
+spec:
+  podSelector:
+    matchLabels:
+      app: bookstore-backend
+  policyTypes: ["Ingress"]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: bookstore-frontend
+      ports:
+        - port: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-backend-to-database
+  namespace: avi-chauhan-dev
+spec:
+  podSelector:
+    matchLabels:
+      app: bookstore-postgres
+  policyTypes: ["Ingress"]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: bookstore-backend
+      ports:
+        - port: 5432

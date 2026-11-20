@@ -1,0 +1,196 @@
+
+== 1. Deployment identity and quota
+2026-11-20T19:33:46Z
+f96f654a132b331401af8049f3ed05e06883f73f
+ M .gitignore
+ M README.md
+ M SUBMISSION_REPORT.md
+ M backend/Dockerfile
+ M deploy/deploy-openshift.sh
+ M deploy/k8s/bookstore-roks-deployment.yaml
+ M deploy/verify-postgres.sh
+ M frontend/Dockerfile
+ M frontend/nginx.conf
+?? .gitattributes
+?? backend/.dockerignore
+?? deploy/DatabaseEvidence.java
+?? deploy/connect-openshift.ps1
+?? deploy/database-evidence.sql
+?? deploy/deploy-openshift.ps1
+?? deploy/sandbox-policy-exclusion.json
+?? deploy/setup-openshift.ps1
+?? deploy/verify-api.py
+?? deploy/verify-postgres-native.py
+?? docs/RESUBMISSION.md
+?? docs/evidence/
+?? frontend/.dockerignore
+Client Version: 5.0.1
+Kustomize Version: v5.8.1
+Server Version: 4.22.22
+Kubernetes Version: v1.35.9
+NAME                    REQUEST                                                                                              LIMIT                                                                          AGE
+compute-build           requests.cpu: 0/3, requests.memory: 0/14Gi, requests.nvidia.com/gpu: 0/0                             limits.cpu: 0/20, limits.memory: 0/14Gi, limits.nvidia.com/gpu: 0/0            21m
+compute-deploy          requests.cpu: 450m/3, requests.memory: 896Mi/30Gi, requests.nvidia.com/gpu: 0/0                      limits.cpu: 2100m/30, limits.memory: 1792Mi/30Gi, limits.nvidia.com/gpu: 0/0   21m
+compute-spacerequests   count/spacerequests.toolchain.dev.openshift.com: 0/5                                                                                                                                21m
+storage                 count/persistentvolumeclaims: 1/10, requests.ephemeral-storage: 0/15Gi, requests.storage: 2Gi/80Gi   limits.ephemeral-storage: 0/15Gi                                               21m
+Project: avi-chauhan-dev
+Build tag: evidence-20261120192652
+
+== 2. Secrets (random values, never printed or saved to the evidence)
+Keeping existing bookstore-secrets
+
+== 3. Build images inside OpenShift (or verify explicitly selected existing image tags)
+image-registry.openshift-image-registry.svc:5000/avi-chauhan-dev/bookstore-backend@sha256:50fcd96530e54fb66ded144e8e796826747a1057a6b6e0bee50b50d2cc8a9776
+image-registry.openshift-image-registry.svc:5000/avi-chauhan-dev/bookstore-frontend@sha256:a3252bc468765c98d7972412cce13b69aca723c131ffedba34be188852a8b2d6
+
+== 4. Scope the Sandbox baseline policy, then validate and apply the manifest
+Bookstore pods are already excluded from the broad Sandbox baseline.
+statefulset.apps/bookstore-postgres configured (server dry run)
+service/bookstore-postgres unchanged (server dry run)
+deployment.apps/bookstore-backend configured (server dry run)
+service/bookstore-backend unchanged (server dry run)
+deployment.apps/bookstore-frontend unchanged (server dry run)
+service/bookstore-frontend unchanged (server dry run)
+route.route.openshift.io/bookstore-route unchanged (server dry run)
+networkpolicy.networking.k8s.io/default-deny-ingress unchanged (server dry run)
+networkpolicy.networking.k8s.io/allow-router-to-frontend configured (server dry run)
+networkpolicy.networking.k8s.io/allow-frontend-to-backend configured (server dry run)
+networkpolicy.networking.k8s.io/allow-backend-to-database configured (server dry run)
+statefulset.apps/bookstore-postgres configured
+service/bookstore-postgres unchanged
+deployment.apps/bookstore-backend configured
+service/bookstore-backend unchanged
+deployment.apps/bookstore-frontend unchanged
+service/bookstore-frontend unchanged
+route.route.openshift.io/bookstore-route unchanged
+networkpolicy.networking.k8s.io/default-deny-ingress unchanged
+networkpolicy.networking.k8s.io/allow-router-to-frontend configured
+networkpolicy.networking.k8s.io/allow-frontend-to-backend configured
+networkpolicy.networking.k8s.io/allow-backend-to-database configured
+partitioned roll out complete: 1 new pods have been updated...
+deployment "bookstore-backend" successfully rolled out
+deployment "bookstore-frontend" successfully rolled out
+NAME                                 READY   STATUS      RESTARTS   AGE     IP              NODE                          NOMINATED NODE   READINESS GATES
+bookstore-backend-1-build            0/1     Completed   0          6m58s   10.130.29.247   ip-10-0-45-122.ec2.internal   <none>           <none>
+bookstore-backend-94bc8689b-69fgq    1/1     Running     0          2m52s   10.130.28.19    ip-10-0-45-122.ec2.internal   <none>           <none>
+bookstore-frontend-1-build           0/1     Completed   0          5m17s   10.130.29.254   ip-10-0-45-122.ec2.internal   <none>           <none>
+bookstore-frontend-b86d8d7df-4gglt   1/1     Running     0          4m19s   10.128.31.16    ip-10-0-16-166.ec2.internal   <none>           <none>
+bookstore-frontend-b86d8d7df-fbf7c   1/1     Running     0          4m19s   10.131.22.203   ip-10-0-79-186.ec2.internal   <none>           <none>
+bookstore-postgres-0                 1/1     Running     0          3m11s   10.130.28.14    ip-10-0-45-122.ec2.internal   <none>           <none>
+NAME              HOST/PORT                                                            PATH   SERVICES             PORT   TERMINATION     WILDCARD
+bookstore-route   bookstore-route-avi-chauhan-dev.apps.rm1.0a51.p1.openshiftapps.com          bookstore-frontend   8080   edge/Redirect   None
+Public URL: https://bookstore-route-avi-chauhan-dev.apps.rm1.0a51.p1.openshiftapps.com
+
+== 5. API, TLS and security checks through the public route
+PASS GET /api/v1/actuator/health expects 200 (200)
+PASS Database-backed application health is UP
+PASS GET /api/v1/books expects 200 (200)
+PASS Public catalogue contains books
+PASS API header X-Content-Type-Options (nosniff)
+PASS API header Referrer-Policy (no-referrer)
+PASS API header X-Frame-Options (DENY)
+PASS API content security policy
+PASS GET /api/v1/cart expects 401 (401)
+PASS GET /api/v1/admin/overview expects 401 (401)
+PASS GET /api/v1/books/16 expects 404 (404)
+PASS GET /api/v1/h2-console/ expects 401 (401)
+PASS GET /api/v1/actuator/env expects 401 (401)
+PASS POST /api/v1/auth/login expects 200 (200)
+PASS Sign-in returns a bearer token
+PASS GET /api/v1/cart expects 200 (200)
+PASS GET /api/v1/books/16 expects 200 (200)
+PASS GET /api/v1/admin/overview expects 403 (403)
+PASS GET /api/v1/actuator/env expects 403 (403)
+PASS GET /api/v1/h2-console/ expects 403 (403)
+PASS GET /api/v1/auth/me expects 200 (200)
+PASS Profile omits password fields
+PASS POST /api/v1/auth/login expects 200 (200)
+PASS Sign-in returns a bearer token
+PASS GET /api/v1/admin/overview expects 200 (200)
+PASS POST /api/v1/auth/login expects 200 (200)
+PASS Sign-in returns a bearer token
+PASS GET /api/v1/orders/1 expects 404 (404)
+PASS GET /api/v1/cart expects 401 (401)
+PASS GET /api/v1/admin/overview expects 401 (401)
+PASS GET /api/v1/cart expects 401 (401)
+PASS GET /api/v1/admin/overview expects 401 (401)
+PASS GET /api/v1/cart expects 401 (401)
+PASS GET /api/v1/admin/overview expects 401 (401)
+PASS GET /api/v1/books expects 200 (200)
+PASS SQL-shaped search cannot bypass filtering
+PASS POST /api/v1/auth/register expects 400 (400)
+PASS GET /api/v1/books/not-a-number expects 400 (400)
+PASS Validation errors omit Java traces
+PASS POST /api/v1/auth/register expects 201 (201)
+PASS New customer registration returns a token
+PASS GET /api/v1/auth/me expects 200 (200)
+PASS POST /api/v1/auth/logout expects 200 (200)
+PASS GET /api/v1/cart expects 401 (401)
+PASS POST /api/v1/auth/login expects 401 (401)
+PASS POST /api/v1/auth/login expects 401 (401)
+PASS POST /api/v1/auth/login expects 401 (401)
+PASS POST /api/v1/auth/login expects 401 (401)
+PASS POST /api/v1/auth/login expects 401 (401)
+PASS POST /api/v1/auth/login expects 429 (429)
+PASS GET /api/v1/cart expects 200 (200)
+PASS GET / expects 200 (200)
+PASS Frontend serves the built React application
+PASS GET /assets/index-CnHOoEoF.js expects 200 (200)
+PASS GET /orders expects 200 (200)
+PASS GET / expects 302 (302)
+PASS HTTP redirects to the same HTTPS host
+57/57 checks passed; evidence: C:\Users\AviChauhan\Desktop\personal projects\IBM_submissions\AI Specialist - Cloud FullStack - Capstone\deploy\evidence\openshift-20261120T193346Z\api-security.json
+
+== 6. Real PostgreSQL version, row fingerprints and persistence after restarting both database and backend
+deployment.apps/bookstore-backend scaled
+pod/bookstore-backend-94bc8689b-69fgq condition met
+postgres_version=16.15
+application_tables=22
+application_role_is_not_superuser=true
+stored_passwords_are_bcrypt=true
+addresses rows=2 md5=d30fa47357a482dac81016efa8d5d09a
+author_follows rows=2 md5=7e4286ef7f58eb9f1eec6b35067793a7
+authors rows=15 md5=6b53b2da68726af4544797a814f74308
+books rows=17 md5=83bf6af598a3aa3465f88fe607150255
+cart_items rows=2 md5=5e6d8fc98ba9456e84e27930b6e33ce3
+carts rows=1 md5=027467d4432eb40a8eee8f8d4a12e75c
+categories rows=6 md5=62bd18f61a37413057e87916a8844c3d
+coupons rows=3 md5=976c351edd5a122fb455d12c69275d6b
+gift_points_ledger rows=6 md5=a92b563d3db6dc883c88f9a85eed9a64
+order_items rows=2 md5=ea8469933f1627669e33bf3a7dbe95fe
+order_returns rows=0 md5=d41d8cd98f00b204e9800998ecf8427e
+orders rows=2 md5=49b313e18bc91013a0a41ac20f2b1212
+publishers rows=5 md5=d426357092352894ec9285ab52d3cae3
+return_items rows=0 md5=d41d8cd98f00b204e9800998ecf8427e
+reviews rows=3 md5=f6f073155a8aafdd071173df526ebe6a
+revoked_tokens rows=2 md5=ed3d1c554043de7e35c03745c2e7a6d3
+shipments rows=2 md5=a1da0db8be175dcf68481aefccc59acb
+store_policies rows=4 md5=f997e09d40120b98e61cdbc4e1aee640
+stores rows=1 md5=87f8be7cc8cb57e9e06b445369d07380
+users rows=5 md5=7db897ce0aa99a0e1e892ee7c83d5d44
+wallet_transactions rows=1 md5=c97ec53f139e2220504b1c1466829b20
+wishlist_items rows=2 md5=2bbd784a2ad61f3c6ca36811e42d8e10
+statefulset.apps/bookstore-postgres restarted
+Waiting for 1 pods to be ready...
+Waiting for 1 pods to be ready...
+Waiting for 1 pods to be ready...
+partitioned roll out complete: 1 new pods have been updated...
+deployment.apps/bookstore-backend scaled
+Waiting for deployment "bookstore-backend" rollout to finish: 0 of 1 updated replicas are available...
+deployment "bookstore-backend" successfully rolled out
+PASS: all table row counts and data hashes survived database and application restart.
+
+== 7. NetworkPolicy enforcement (DNS, an allowed connection, then a denied connection)
+pod/bookstore-probe-1795203308-852 created
+pod/bookstore-probe-1795203308-852 condition met
+RESULT=REACHABLE
+pod "bookstore-probe-1795203308-852" deleted from avi-chauhan-dev namespace
+pod/bookstore-probe-1795203315-769 created
+pod/bookstore-probe-1795203315-769 condition met
+RESULT=BLOCKED
+pod "bookstore-probe-1795203315-769" deleted from avi-chauhan-dev namespace
+
+== PASS: deployment, API security, PostgreSQL persistence and network isolation verified
+Evidence: /c/Users/AviChauhan/Desktop/personal projects/IBM_submissions/AI Specialist - Cloud FullStack - Capstone/deploy/evidence/openshift-20261120T193346Z
+Public URL: https://bookstore-route-avi-chauhan-dev.apps.rm1.0a51.p1.openshiftapps.com
+Review the evidence and record the running application before resubmitting. This is a temporary demo with public demo accounts.

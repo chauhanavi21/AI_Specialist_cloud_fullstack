@@ -6,7 +6,8 @@ COPY pom.xml mvnw ./
 COPY .mvn .mvn
 COPY src src
 
-RUN chmod +x mvnw && ./mvnw clean package -DskipTests
+# Binary builds uploaded from Windows can contain CRLF despite the repository storing LF.
+RUN sed -i 's/\r$//' mvnw && chmod +x mvnw && ./mvnw clean package -DskipTests
 
 # Runtime stage with minimal non-root image
 FROM eclipse-temurin:21-jre-alpine
@@ -14,12 +15,13 @@ FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
 
 # Create non-root user
-RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+RUN addgroup -S -g 10001 appgroup && adduser -S -u 10001 appuser -G appgroup
 
 COPY --from=builder /build/target/*.jar app.jar
 RUN chown -R appuser:appgroup /app
 
-USER appuser
+# A numeric UID lets Kubernetes verify runAsNonRoot; OpenShift can still assign its own UID.
+USER 10001:0
 
 EXPOSE 8080
 

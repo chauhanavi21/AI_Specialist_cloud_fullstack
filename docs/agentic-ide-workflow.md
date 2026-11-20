@@ -113,3 +113,19 @@ Prompts used on this round, in order:
 - **Frontend**: dark theme, accessible `Modal`, toast notifications instead of `alert()`, generated typographic covers, wishlist and writers pages, and a checkout that mirrors slides 8 to 10.
 - **Tests**: from 7 unit tests to 40 tests, including an integration test that boots the whole application on the real schema and seed data, and a browser walk-through of the full customer journey. Slide 4 work and the follow-up hardening brought this to 79 (see section 5a).
 - **Docs**: OpenAPI, the Postman collection and the data model were regenerated from the code, and the spec was checked so that every served route is documented and every `$ref` resolves.
+
+## 6. Live deployment revision — November 20, 2026
+
+This revision was completed with **OpenAI Codex**, starting from the author's review screenshot and the existing repository.
+The author created/activated the free Red Hat Developer Sandbox. Browser-based `oc login --web` authenticated locally;
+no login token was requested in chat or committed.
+
+Codex fixed Windows/container build compatibility, OpenShift arbitrary-UID nginx configuration, namespace-scoped deployment,
+image tagging/build verification, runtime API assertions and persistent database evidence capture. The live network probe found
+that the Sandbox's default `allow-same-namespace` policy made the intended isolation ineffective. The baseline was narrowed only
+for the bookstore labels, then allowed/denied probes were repeated successfully.
+
+Actual results: **79 backend tests**, production frontend build, **51 assertions on native PostgreSQL 16.16**, **57 assertions
+through the live OpenShift HTTPS route**, unchanged data across both database and app restarts, real non-root container users,
+and five browser checks. See the [captured cloud evidence](evidence/openshift-2026-11-20/README.md).
+These deployment revisions are attributed to Codex; the original IBM Bob work and prior Claude Code revisions remain attributed above.

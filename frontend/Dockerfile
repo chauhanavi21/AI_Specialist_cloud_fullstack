@@ -19,4 +19,9 @@ ENV BACKEND_HOST=backend \
 COPY --from=builder /app/dist /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/templates/default.conf.template
 
+# OpenShift assigns an arbitrary UID in group 0. envsubst must be able to write the generated config.
+USER root
+RUN chgrp -R 0 /etc/nginx/conf.d && chmod -R g=u /etc/nginx/conf.d
+USER 101:0
+
 EXPOSE 8080

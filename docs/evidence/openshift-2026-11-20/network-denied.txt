@@ -1,0 +1,4 @@
+pod/bookstore-probe-1795203315-769 created
+pod/bookstore-probe-1795203315-769 condition met
+RESULT=BLOCKED
+pod "bookstore-probe-1795203315-769" deleted from avi-chauhan-dev namespace

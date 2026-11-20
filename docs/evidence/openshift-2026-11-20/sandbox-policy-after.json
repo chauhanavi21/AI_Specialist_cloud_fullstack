@@ -1,0 +1,46 @@
+{
+    "apiVersion": "networking.k8s.io/v1",
+    "kind": "NetworkPolicy",
+    "metadata": {
+        "annotations": {
+            "toolchain.dev.openshift.com/last-applied-configuration": "{\"apiVersion\":\"networking.k8s.io/v1\",\"kind\":\"NetworkPolicy\",\"metadata\":{\"labels\":{\"toolchain.dev.openshift.com/provider\":\"codeready-toolchain\",\"toolchain.dev.openshift.com/space\":\"avi-chauhan\"},\"name\":\"allow-same-namespace\",\"namespace\":\"avi-chauhan-dev\"},\"spec\":{\"ingress\":[{\"from\":[{\"podSelector\":{}}]}],\"podSelector\":{}}}"
+        },
+        "creationTimestamp": "2026-11-20T19:12:24Z",
+        "generation": 2,
+        "labels": {
+            "toolchain.dev.openshift.com/provider": "codeready-toolchain",
+            "toolchain.dev.openshift.com/space": "avi-chauhan"
+        },
+        "name": "allow-same-namespace",
+        "namespace": "avi-chauhan-dev",
+        "resourceVersion": "7257514847",
+        "uid": "e4d3a5b5-fa4c-4896-b08e-11f1ad5210ce"
+    },
+    "spec": {
+        "ingress": [
+            {
+                "from": [
+                    {
+                        "podSelector": {}
+                    }
+                ]
+            }
+        ],
+        "podSelector": {
+            "matchExpressions": [
+                {
+                    "key": "app",
+                    "operator": "NotIn",
+                    "values": [
+                        "bookstore-frontend",
+                        "bookstore-backend",
+                        "bookstore-postgres"
+                    ]
+                }
+            ]
+        },
+        "policyTypes": [
+            "Ingress"
+        ]
+    }
+}

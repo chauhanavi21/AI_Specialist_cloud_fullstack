@@ -1,0 +1,32 @@
+{
+  "started_at": "2026-11-20T19:16:15.941352+00:00",
+  "passed": true,
+  "environment": "Native PostgreSQL (not a container or cluster)",
+  "checks": [
+    {
+      "name": "Fresh real PostgreSQL server and non-superuser application role",
+      "passed": true
+    },
+    {
+      "name": "PostgreSQL SQL scripts execute before Hibernate schema validation on a fresh database",
+      "passed": true
+    },
+    {
+      "name": "Live API and security assertions against PostgreSQL",
+      "passed": true
+    },
+    {
+      "name": "Real PostgreSQL process restarted",
+      "passed": true
+    },
+    {
+      "name": "All 22 table row counts and data hashes survive database and application restart",
+      "passed": true
+    },
+    {
+      "name": "Passwords stored as BCrypt; application role is not a PostgreSQL superuser",
+      "passed": true
+    }
+  ],
+  "finished_at": "2026-11-20T19:17:00.522516+00:00"
+}

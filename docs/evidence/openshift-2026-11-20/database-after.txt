@@ -1,0 +1,26 @@
+postgres_version=16.15
+application_tables=22
+application_role_is_not_superuser=true
+stored_passwords_are_bcrypt=true
+addresses rows=2 md5=d30fa47357a482dac81016efa8d5d09a
+author_follows rows=2 md5=7e4286ef7f58eb9f1eec6b35067793a7
+authors rows=15 md5=6b53b2da68726af4544797a814f74308
+books rows=17 md5=83bf6af598a3aa3465f88fe607150255
+cart_items rows=2 md5=5e6d8fc98ba9456e84e27930b6e33ce3
+carts rows=1 md5=027467d4432eb40a8eee8f8d4a12e75c
+categories rows=6 md5=62bd18f61a37413057e87916a8844c3d
+coupons rows=3 md5=976c351edd5a122fb455d12c69275d6b
+gift_points_ledger rows=6 md5=a92b563d3db6dc883c88f9a85eed9a64
+order_items rows=2 md5=ea8469933f1627669e33bf3a7dbe95fe
+order_returns rows=0 md5=d41d8cd98f00b204e9800998ecf8427e
+orders rows=2 md5=49b313e18bc91013a0a41ac20f2b1212
+publishers rows=5 md5=d426357092352894ec9285ab52d3cae3
+return_items rows=0 md5=d41d8cd98f00b204e9800998ecf8427e
+reviews rows=3 md5=f6f073155a8aafdd071173df526ebe6a
+revoked_tokens rows=2 md5=ed3d1c554043de7e35c03745c2e7a6d3
+shipments rows=2 md5=a1da0db8be175dcf68481aefccc59acb
+store_policies rows=4 md5=f997e09d40120b98e61cdbc4e1aee640
+stores rows=1 md5=87f8be7cc8cb57e9e06b445369d07380
+users rows=5 md5=7db897ce0aa99a0e1e892ee7c83d5d44
+wallet_transactions rows=1 md5=c97ec53f139e2220504b1c1466829b20
+wishlist_items rows=2 md5=2bbd784a2ad61f3c6ca36811e42d8e10

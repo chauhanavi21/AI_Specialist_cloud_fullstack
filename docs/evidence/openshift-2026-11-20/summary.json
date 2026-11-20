@@ -1,0 +1,25 @@
+{
+  "captured_at": "2026-11-20T19:36:43.686029+00:00",
+  "passed": true,
+  "namespace": "avi-chauhan-dev",
+  "openshift_version": "4.22.22",
+  "kubernetes_version": "1.35.9",
+  "url": "https://bookstore-route-avi-chauhan-dev.apps.rm1.0a51.p1.openshiftapps.com",
+  "postgresql_version": "16.15",
+  "server_validation": "all 11 namespaced manifest resources accepted",
+  "backend_tests": 79,
+  "runtime_api_security_assertions": 57,
+  "browser_checks": 5,
+  "tables_unchanged_after_database_and_backend_restart": 22,
+  "network_allowed": "REACHABLE",
+  "network_unrelated": "BLOCKED",
+  "sandbox_baseline_policy_scoped_to_exclude_bookstore": true,
+  "source_base_commit": "f96f654a132b331401af8049f3ed05e06883f73f",
+  "tested_with_uncommitted_changes": true,
+  "limitations": [
+    "Temporary Sandbox; public demo accounts; simulated payments",
+    "Platform-managed baseline policy may be reconciled; rerun the deployment/probe after platform changes",
+    "npm production audit: zero reported vulnerabilities; build reported two dev-tool advisories",
+    "Backend dependencies and full container images were not vulnerability-scanned"
+  ]
+}

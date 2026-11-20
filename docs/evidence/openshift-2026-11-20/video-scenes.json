@@ -1,0 +1,46 @@
+{
+  "description": "Silent browser recording of the actual deployed application/endpoints and the separately captured evidence report.",
+  "recorded_at": "2026-11-20T19:41:56.540Z",
+  "scenes": [
+    {
+      "label": "Captured deployment overview",
+      "source_url": "Captured evidence report (local file)",
+      "seconds_from_start": 1
+    },
+    {
+      "label": "Actual running HTTPS application",
+      "source_url": "https://bookstore-route-avi-chauhan-dev.apps.rm1.0a51.p1.openshiftapps.com",
+      "seconds_from_start": 10
+    },
+    {
+      "label": "Actual live health endpoint",
+      "source_url": "https://bookstore-route-avi-chauhan-dev.apps.rm1.0a51.p1.openshiftapps.com/api/v1/actuator/health",
+      "seconds_from_start": 27
+    },
+    {
+      "label": "Actual guest request to admin endpoint (401)",
+      "source_url": "https://bookstore-route-avi-chauhan-dev.apps.rm1.0a51.p1.openshiftapps.com/api/v1/admin/overview",
+      "seconds_from_start": 35
+    },
+    {
+      "label": "Captured security controls and passing results",
+      "source_url": "Captured evidence report (local file)",
+      "seconds_from_start": 42
+    },
+    {
+      "label": "Captured real PostgreSQL persistence proof",
+      "source_url": "Captured evidence report (local file)",
+      "seconds_from_start": 50
+    },
+    {
+      "label": "Captured allowed and blocked network probes",
+      "source_url": "Captured evidence report (local file)",
+      "seconds_from_start": 60
+    },
+    {
+      "label": "Evidence overview and live URL",
+      "source_url": "Captured evidence report (local file)",
+      "seconds_from_start": 71
+    }
+  ]
+}

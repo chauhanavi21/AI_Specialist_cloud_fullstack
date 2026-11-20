@@ -1,0 +1,7 @@
+{
+  "base_commit": "f96f654a132b331401af8049f3ed05e06883f73f",
+  "tested_with_uncommitted_changes": true,
+  "java": "Amazon Corretto 21.0.13",
+  "postgres": "16.16",
+  "cluster_deployed": false
+}

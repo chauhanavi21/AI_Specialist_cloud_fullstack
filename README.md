@@ -4,6 +4,10 @@ An online bookstore: browse by genre and brand, read about a book and its writer
 redeem gift points and coupons, and cancel any order within 48 hours. Built with agentic IDEs (IBM Bob for the first build, Claude Code for the slide 4 revision) for the
 IBM AI Specialist capstone. Prices are in Indian rupees (₹).
 
+**Live OpenShift demo:** [Book Worm](https://bookstore-route-avi-chauhan-dev.apps.rm1.0a51.p1.openshiftapps.com).
+Validated November 20, 2026: **57 runtime checks**, database persistence across restarts, and allowed/blocked network probes passed.
+See the [captured cluster evidence](docs/evidence/openshift-2026-11-20/README.md). The free Sandbox is temporary.
+
 ---
 
 ## What is in it
@@ -75,7 +79,7 @@ Demo customer: **alex.dev@ibm.com / Password123!** (the sign-in dialog has a **U
 It starts with 250 gift points and ₹1,500 in the wallet, one order in its cancellation window and one delivered order you can return.
 
 Demo administrator: **admin@bookworm.example / Password123!** (shows the **Admin** tab). **Both demo accounts and the demo signing key are public;
-remove them before any real deployment.** On the `postgres` profile the app refuses to start unless `JWT_SECRET` is set to your own value
+remove them before deploying with real users or data.** On the `postgres` profile the app refuses to start unless `JWT_SECRET` is set to your own value
 (`openssl rand -base64 64`).
 
 Test cards: `4242 4242 4242 4242` succeeds, `4000 0000 0000 0002` is declined. Use any future expiry and any 3-digit CVV.
@@ -94,19 +98,25 @@ Credentials come from `POSTGRES_USER`, `POSTGRES_PASSWORD` and `JWT_SECRET` in y
 **Set `JWT_SECRET` yourself:** the default in `docker-compose.yml` is the public demo value, and the backend container will refuse to start with it. The PostgreSQL profile uses its own idempotent scripts in
 `backend/src/main/resources/db/postgres/`. They are written to be safe to re-run (`IF NOT EXISTS`, `ON CONFLICT DO NOTHING`) and never drop tables.
 
-> The PostgreSQL scripts and the compose / OpenShift files were checked for syntax and idempotency but have not been run
-> against a live PostgreSQL server, Docker or a cluster from this repository. See the report for details.
+The SQL scripts were executed on real **PostgreSQL 16.16** on November 20, 2026: **51 runtime API/security assertions passed**,
+and all **22 tables** retained identical counts and data hashes after database/application restarts.
+See [captured local evidence](docs/evidence/local-2026-11-20/README.md). Container and cluster validation remain separate steps.
 
 ## Prove it on PostgreSQL and OpenShift
 
-```bash
-deploy/verify-postgres.sh        # needs Docker: throwaway PostgreSQL 16, boots the app, replays the API, restarts, compares
-oc login ...                     # a cluster, for example the free Red Hat Developer Sandbox
-deploy/deploy-openshift.sh       # creates secrets, builds images in the cluster, applies the manifest, prints the evidence
+```powershell
+# Windows: activate the free Red Hat Developer Sandbox, then run from this repository.
+.\deploy\setup-openshift.ps1
+.\deploy\connect-openshift.ps1 -Server 'https://api.YOUR_CLUSTER:6443'
+.\deploy\deploy-openshift.ps1 -Namespace 'YOUR_PROJECT-dev'
 ```
 
-The PostgreSQL scripts have been run on a real PostgreSQL 16.16 (details and the bugs that run found are in the report). The OpenShift manifest passes strict schema
-validation but **has not been applied to a cluster**; `deploy/deploy-openshift.sh` is how to do that and capture the evidence.
+The deployment builds both images inside OpenShift, checks and applies the actual manifest, tests the public HTTPS application,
+verifies database persistence, and tests network isolation. It writes evidence to `deploy/evidence/` and stops if a check fails.
+**Live deployment and validation passed on OpenShift 4.22.22**, with PostgreSQL 16.15 running in the cluster.
+See [cluster evidence](docs/evidence/openshift-2026-11-20/README.md) and the [setup and resubmission guide](docs/RESUBMISSION.md).
+For Linux/Git Bash, run `bash deploy/deploy-openshift.sh YOUR_PROJECT-dev` after logging in with `oc`.
+For a local PostgreSQL check without Docker, use `deploy/verify-postgres-native.py` as explained in the guide.
 
 ## Tests
 
@@ -123,6 +133,7 @@ Folders 8 to 13 carry test scripts, so they can be run as a contract check, for 
 
 ## Documentation
 
+- [Review feedback, Sandbox setup and resubmission guide](docs/RESUBMISSION.md)
 - [Submission report, security section & video script](SUBMISSION_REPORT.md)
 - [OpenAPI 3.0 specification](docs/openapi.yaml)
 - [Data model & business rules](docs/data-model.md)

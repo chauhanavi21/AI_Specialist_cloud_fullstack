@@ -4,7 +4,7 @@
 #   deploy/deploy-openshift.sh
 #
 # Or by hand:
-#   1. oc new-project bookstore-capstone          (or apply the Namespace below)
+#   1. oc project YOUR_EXISTING_PROJECT          (the Developer Sandbox provides one ending in -dev)
 #   2. create the Secret  (this file deliberately does NOT contain one, so it can never install placeholder credentials):
 #        oc create secret generic bookstore-secrets -n bookstore-capstone \
 #          --from-literal=postgres-user=bookstore_user \
@@ -16,14 +16,8 @@
 # Without step 2 the pods stop with CreateContainerConfigError ("secret bookstore-secrets not found"), which is the
 # intended failure: the application also refuses to start with a weak or published JWT secret.
 #
-# Status: every resource below passes strict schema validation (kubeconform, Kubernetes 1.30; the OpenShift Route is
-# not covered by that schema and was checked by hand). It has NOT been applied to a live cluster from this repository:
-# no cluster was available. The same database scripts and application were run against a real PostgreSQL 16 server.
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: bookstore-capstone
----
+# This file has only namespaced resources: Sandbox users cannot manage Namespace objects.
+# Runtime validation is recorded by deploy/deploy-openshift.sh; a schema check alone does not prove deployment.
 # PostgreSQL with persistent storage
 apiVersion: apps/v1
 kind: StatefulSet
@@ -43,7 +37,9 @@ spec:
     spec:
       containers:
         - name: postgres
-          image: registry.redhat.io/rhel9/postgresql-16:latest
+          # Public SCLorg PostgreSQL 16 image; arbitrary-UID support without a registry subscription.
+          # Multi-architecture digest published by quay.io/sclorg/postgresql-16-c9s on 2026-11-18.
+          image: quay.io/sclorg/postgresql-16-c9s@sha256:56a437f04fbd3726879dbebaf9d751c58b7c41962b326e1b3352f515bf9f1892
           ports:
             - containerPort: 5432
           env:
@@ -117,12 +113,9 @@ metadata:
 spec:
   # One replica: the Postgres seed/sequence reset runs at start-up, so a single instance seeds cleanly.
   replicas: 1
-  # One replica, and the new pod must be ready before the old one stops, so a deploy never takes the API down.
+  # Startup adjusts seed identity sequences. Stop the old instance before seeding to avoid concurrent writers.
   strategy:
-    type: RollingUpdate
-    rollingUpdate:
-      maxUnavailable: 0
-      maxSurge: 1
+    type: Recreate
   selector:
     matchLabels:
       app: bookstore-backend
@@ -291,7 +284,11 @@ metadata:
   name: default-deny-ingress
   namespace: bookstore-capstone
 spec:
-  podSelector: {}
+  podSelector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values: [bookstore-frontend, bookstore-backend, bookstore-postgres]
   policyTypes: ["Ingress"]
 ---
 apiVersion: networking.k8s.io/v1

@@ -1,0 +1,8 @@
+deployment/bookstore-backend
+uid=1003930000(1003930000) gid=0(root) groups=0(root),1003930000
+
+deployment/bookstore-frontend
+uid=1003930000(1003930000) gid=0(root) groups=0(root),1003930000
+
+statefulset/bookstore-postgres
+uid=1003930000(1003930000) gid=0(root) groups=0(root),1003930000
