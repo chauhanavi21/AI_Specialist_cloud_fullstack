@@ -64,4 +64,49 @@ class JwtSecretGuardTest {
         assertDoesNotThrow(() -> check(secret));
         assertDoesNotThrow(() -> new JwtTokenProvider(secret, 60_000), "the guard must accept exactly what the provider accepts");
     }
+
+    @Test
+    @DisplayName("Valid base64 that is obviously a placeholder is refused, not just the one published secret")
+    void guessablePlaceholdersAreRefused() {
+        // all of these decode to 32 bytes or more, so a length check alone would accept them
+        String[] placeholders = {
+                "ChangeMeChangeMeChangeMeChangeMeChangeMeChangeMe12",   // a short word repeated
+                "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",   // one character
+                "abababababababababababababababababababababababab",       // two characters
+                "0123456789012345678901234567890123456789012345678901",   // ten characters repeating
+                "Zm9vYmFyZm9vYmFyZm9vYmFyZm9vYmFyZm9vYmFyZm9vYmFyZm9v",   // "foobar" repeated, base64 encoded
+                "Q3Vyc29yQ3Vyc29yQ3Vyc29yQ3Vyc29yQ3Vyc29yQ3Vyc29yQ3Vyc29y", // another repeated word
+                "k3Jx9aPq2LmZ7vNb4TdY8wEc1HgU5sFr0000000000000000000000000000", // random start, padded with zeros
+        };
+        for (String p : placeholders) {
+            assertDoesNotThrow(() -> java.util.Base64.getDecoder().decode(p), "test input must be valid base64: " + p);
+            assertThrows(IllegalStateException.class, () -> check(p), "accepted a guessable secret: " + p);
+        }
+    }
+
+    @Test
+    @DisplayName("Many different random secrets are never mistaken for placeholders")
+    void randomSecretsAreNeverRejected() throws Exception {
+        SecureRandom random = new SecureRandom();
+        for (int i = 0; i < 2000; i++) {
+            byte[] bytes = new byte[32 + random.nextInt(64)];
+            random.nextBytes(bytes);
+            String secret = Base64.getEncoder().encodeToString(bytes);
+            assertDoesNotThrow(() -> check(secret), "a random secret was refused: " + secret);
+        }
+    }
+
+    @Test
+    @DisplayName("A secret pasted with a trailing newline or carriage return still works (Windows openssl ends lines with CRLF)")
+    void trailingWhitespaceIsTolerated() {
+        byte[] bytes = new byte[64];
+        new SecureRandom().nextBytes(bytes);
+        String clean = Base64.getEncoder().encodeToString(bytes);
+        String[] suffixes = {"\n", "\r\n", " ", "\r"};
+        for (int i = 0; i < suffixes.length; i++) {
+            String pasted = clean + suffixes[i];
+            assertDoesNotThrow(() -> check(pasted), "the guard refused a pasted secret with trailing whitespace");
+            assertDoesNotThrow(() -> new JwtTokenProvider(pasted, 60_000), "the token provider refused it");
+        }
+    }
 }
