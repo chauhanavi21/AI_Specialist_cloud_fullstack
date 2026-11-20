@@ -8,8 +8,9 @@
 **Health:** <https://bookstore-route-avi-chauhan-dev.apps.rm1.0a51.p1.openshiftapps.com/api/v1/actuator/health>
 
 **Submission files:** [MP4 proof clip](Cloud_Deployment_Proof.mp4), [printable evidence PDF](Cloud_Deployment_Evidence.pdf),
-and [interactive/local review page](index.html). The MP4 is a silent browser capture of the actual live application/endpoints
-and this separately captured evidence report; it supplements the original project/workflow demonstration.
+and [interactive/local review page](index.html). The MP4 captures the actual live application/endpoints and this separately
+captured evidence report, with computer-generated narration from [this script](narration.txt). It supplements the original
+project/workflow demonstration and does not imitate the author's voice.
 
 | Reviewer feedback | Actual validation | Evidence |
 |---|---|---|

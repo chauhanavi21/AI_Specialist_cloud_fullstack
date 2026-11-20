@@ -10,7 +10,10 @@ The steps below reproduce that run. Ready-to-paste submission text is in [RESUBM
 For the revised attempt, keep the original project/IBM Bob workflow demonstration and attach the new
 [MP4 proof clip](evidence/openshift-2026-11-20/Cloud_Deployment_Proof.mp4) and
 [evidence PDF](evidence/openshift-2026-11-20/Cloud_Deployment_Evidence.pdf), or append the clip to the original video.
-The new clip is silent and shows the live app/endpoints plus the captured evidence; it supplements the original explanation.
+The new clip shows the live app/endpoints plus captured evidence, with computer-generated narration; it supplements the original explanation.
+On the author's machine, a combined upload-ready video is provided at `resubmission/AI_Specialist_Cloud_FullStack_REVISED.mp4`.
+It retains the full original demonstration/audio and appends the narrated proof. The local `resubmission/` folder is excluded from
+git so the author's original recording is not published to the public repository. The original source video is kept unchanged.
 
 ## 1. Activate the free OpenShift Sandbox
 

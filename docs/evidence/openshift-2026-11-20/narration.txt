@@ -1,0 +1,13 @@
+This recording supplements the original capstone demonstration with live deployment and security evidence.
+
+Book Worm is now running on Red Hat OpenShift. Both application images were built inside the cluster. All eleven manifest resources passed server validation, including the HTTPS route and persistent PostgreSQL database.
+
+The running catalog is served by the deployed application. The health endpoint reports up. An unauthenticated request to administration is rejected.
+
+Fifty-seven runtime checks passed through the public HTTPS route. They verify signed tokens, rejection of forged and unsigned tokens, customer and administrator roles, order ownership, server-side logout, login rate limiting, input validation, security headers, and HTTPS redirection. Passwords are hashed with BCrypt, and the containers run as non-root users.
+
+The real PostgreSQL server executed the schema and seed scripts. After a new customer was registered, both the database and backend were restarted. All twenty-two tables retained identical row counts and data hashes.
+
+The first network test found an overly broad Sandbox policy. After excluding the bookstore from that rule, the backend could connect to PostgreSQL, while an unrelated pod was blocked.
+
+The repository contains the captured commands, results, image identifiers, and before-and-after evidence. This is a temporary demonstration with simulated payments.

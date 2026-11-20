@@ -1,5 +1,5 @@
 {
-  "description": "Silent browser recording of the actual deployed application/endpoints and the separately captured evidence report.",
+  "description": "Browser capture of the actual deployed application/endpoints and captured evidence report, with computer-generated narration.",
   "recorded_at": "2026-11-20T19:41:56.540Z",
   "scenes": [
     {
@@ -42,5 +42,6 @@
       "source_url": "Captured evidence report (local file)",
       "seconds_from_start": 71
     }
-  ]
+  ],
+  "narration": "Microsoft Zira Desktop text-to-speech; script: narration.txt; original author voice is not imitated."
 }
