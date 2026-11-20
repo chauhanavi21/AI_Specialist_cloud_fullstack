@@ -1,31 +1,28 @@
 # Bookstore on Red Hat OpenShift (IBM ROKS or AWS ROSA).
 #
-#   oc apply -f deploy/k8s/bookstore-roks-deployment.yaml
+# Deploy with the script, which creates the secrets, builds the images and applies this file in the right order:
+#   deploy/deploy-openshift.sh
 #
-# BEFORE you apply: replace every CHANGE_ME value in the Secret below. Do not commit real secrets;
-# for anything beyond a demo create the Secret from the CLI instead:
-#   oc create secret generic bookstore-secrets -n bookstore-capstone \
-#     --from-literal=postgres-user=bookstore_user \
-#     --from-literal=postgres-password="$(openssl rand -base64 24)" \
-#     --from-literal=jwt-secret="$(openssl rand -hex 48)"
+# Or by hand:
+#   1. oc new-project bookstore-capstone          (or apply the Namespace below)
+#   2. create the Secret  (this file deliberately does NOT contain one, so it can never install placeholder credentials):
+#        oc create secret generic bookstore-secrets -n bookstore-capstone \
+#          --from-literal=postgres-user=bookstore_user \
+#          --from-literal=postgres-password="$(openssl rand -base64 24 | tr -d '/+=\r\n')" \
+#          --from-literal=jwt-secret="$(openssl rand -base64 64 | tr -d '\r\n')"
+#   3. build and push the two images into the cluster registry (see deploy/deploy-openshift.sh)
+#   4. oc apply -f deploy/k8s/bookstore-roks-deployment.yaml
 #
-# Status: this manifest has been reviewed and checked for YAML validity, but it has not been applied
-# to a live cluster from this repository.
+# Without step 2 the pods stop with CreateContainerConfigError ("secret bookstore-secrets not found"), which is the
+# intended failure: the application also refuses to start with a weak or published JWT secret.
+#
+# Status: every resource below passes strict schema validation (kubeconform, Kubernetes 1.30; the OpenShift Route is
+# not covered by that schema and was checked by hand). It has NOT been applied to a live cluster from this repository:
+# no cluster was available. The same database scripts and application were run against a real PostgreSQL 16 server.
 apiVersion: v1
 kind: Namespace
 metadata:
   name: bookstore-capstone
----
-apiVersion: v1
-kind: Secret
-metadata:
-  name: bookstore-secrets
-  namespace: bookstore-capstone
-type: Opaque
-stringData:
-  postgres-user: "bookstore_user"
-  postgres-password: "CHANGE_ME_postgres_password"
-  jwt-secret: "CHANGE_ME_at_least_64_hex_characters_0000000000000000000000000000000000"
 ---
 # PostgreSQL with persistent storage
 apiVersion: apps/v1
@@ -65,6 +62,13 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /var/lib/pgsql/data
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
           resources:
             requests:
               memory: "256Mi"
@@ -113,6 +117,12 @@ metadata:
 spec:
   # One replica: the Postgres seed/sequence reset runs at start-up, so a single instance seeds cleanly.
   replicas: 1
+  # One replica, and the new pod must be ready before the old one stops, so a deploy never takes the API down.
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
   selector:
     matchLabels:
       app: bookstore-backend
@@ -123,7 +133,7 @@ spec:
     spec:
       containers:
         - name: backend
-          image: image-registry.openshift-image-registry.svc:5000/bookstore-capstone/bookstore-backend:latest
+          image: image-registry.openshift-image-registry.svc:5000/bookstore-capstone/bookstore-backend:v3
           ports:
             - containerPort: 8080
           env:
@@ -146,6 +156,13 @@ spec:
                 secretKeyRef:
                   name: bookstore-secrets
                   key: jwt-secret
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
           resources:
             requests:
               memory: "512Mi"
@@ -153,19 +170,26 @@ spec:
             limits:
               memory: "1Gi"
               cpu: "1000m"
+          # The JVM and the database scripts take a while to start. The startup probe gives it up to 5 minutes,
+          # and only then do the (tight) readiness and liveness probes take over, so a slow first start is not killed.
+          startupProbe:
+            httpGet:
+              path: /api/v1/actuator/health
+              port: 8080
+            periodSeconds: 5
+            failureThreshold: 60
           readinessProbe:
             httpGet:
               path: /api/v1/actuator/health
               port: 8080
-            initialDelaySeconds: 30
             periodSeconds: 10
-            failureThreshold: 12
+            failureThreshold: 3
           livenessProbe:
             httpGet:
               path: /api/v1/actuator/health
               port: 8080
-            initialDelaySeconds: 90
             periodSeconds: 20
+            failureThreshold: 3
 ---
 apiVersion: v1
 kind: Service
@@ -188,6 +212,11 @@ metadata:
     app: bookstore-frontend
 spec:
   replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
   selector:
     matchLabels:
       app: bookstore-frontend
@@ -198,13 +227,20 @@ spec:
     spec:
       containers:
         - name: frontend
-          image: image-registry.openshift-image-registry.svc:5000/bookstore-capstone/bookstore-frontend:latest
+          image: image-registry.openshift-image-registry.svc:5000/bookstore-capstone/bookstore-frontend:v3
           ports:
             - containerPort: 8080
           env:
             # nginx proxies /api/v1/ to this Service name
             - name: BACKEND_HOST
               value: bookstore-backend
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
           resources:
             requests:
               memory: "64Mi"
@@ -246,3 +282,69 @@ spec:
   tls:
     termination: edge
     insecureEdgeTerminationPolicy: Redirect
+---
+# Network isolation. Start from "nothing may talk to anything", then allow only the paths the app uses:
+#   internet -> OpenShift router -> frontend -> backend -> database
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: bookstore-capstone
+spec:
+  podSelector: {}
+  policyTypes: ["Ingress"]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-router-to-frontend
+  namespace: bookstore-capstone
+spec:
+  podSelector:
+    matchLabels:
+      app: bookstore-frontend
+  policyTypes: ["Ingress"]
+  ingress:
+    - from:
+        # OpenShift labels the namespace that runs the router (ingress controller) with this label.
+        - namespaceSelector:
+            matchLabels:
+              network.openshift.io/policy-group: ingress
+      ports:
+        - port: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-frontend-to-backend
+  namespace: bookstore-capstone
+spec:
+  podSelector:
+    matchLabels:
+      app: bookstore-backend
+  policyTypes: ["Ingress"]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: bookstore-frontend
+      ports:
+        - port: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-backend-to-database
+  namespace: bookstore-capstone
+spec:
+  podSelector:
+    matchLabels:
+      app: bookstore-postgres
+  policyTypes: ["Ingress"]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: bookstore-backend
+      ports:
+        - port: 5432

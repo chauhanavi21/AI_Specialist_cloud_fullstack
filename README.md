@@ -97,11 +97,22 @@ Credentials come from `POSTGRES_USER`, `POSTGRES_PASSWORD` and `JWT_SECRET` in y
 > The PostgreSQL scripts and the compose / OpenShift files were checked for syntax and idempotency but have not been run
 > against a live PostgreSQL server, Docker or a cluster from this repository. See the report for details.
 
+## Prove it on PostgreSQL and OpenShift
+
+```bash
+deploy/verify-postgres.sh        # needs Docker: throwaway PostgreSQL 16, boots the app, replays the API, restarts, compares
+oc login ...                     # a cluster, for example the free Red Hat Developer Sandbox
+deploy/deploy-openshift.sh       # creates secrets, builds images in the cluster, applies the manifest, prints the evidence
+```
+
+The PostgreSQL scripts have been run on a real PostgreSQL 16.16 (details and the bugs that run found are in the report). The OpenShift manifest passes strict schema
+validation but **has not been applied to a cluster**; `deploy/deploy-openshift.sh` is how to do that and capture the evidence.
+
 ## Tests
 
 ```powershell
 cd backend
-./mvnw test        # 74 tests, including full-stack API tests on the real schema and seed data
+./mvnw test        # 79 tests, including full-stack API tests on the real schema and seed data
 ```
 
 Import [`docs/bookstore-api-collection.json`](docs/bookstore-api-collection.json) into Postman or Insomnia for the 88 API requests.

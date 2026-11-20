@@ -26,7 +26,8 @@ public class JwtTokenProvider {
     public JwtTokenProvider(
             @Value("${app.jwt.secret}") String secret,
             @Value("${app.jwt.expiration-ms:86400000}") long jwtExpirationMs) {
-        byte[] keyBytes = Decoders.BASE64.decode(secret);
+        // Trim: a secret copied from a terminal or a file often carries a trailing newline or carriage return.
+        byte[] keyBytes = Decoders.BASE64.decode(secret.strip());
         this.key = Keys.hmacShaKeyFor(keyBytes);
         this.jwtExpirationMs = jwtExpirationMs;
     }

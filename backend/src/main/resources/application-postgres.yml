@@ -16,6 +16,10 @@ spring:
       # The schema is created by db/postgres/schema.sql (idempotent), so Hibernate only validates it.
       ddl-auto: validate
     show-sql: false
+    # The default profile defers the SQL scripts until after Hibernate (right for H2, where Hibernate creates the tables).
+    # Here the script creates the tables and Hibernate only validates them, so the script must run FIRST.
+    # Without this line a fresh database fails with "Schema-validation: missing table [addresses]".
+    defer-datasource-initialization: false
   sql:
     init:
       mode: always

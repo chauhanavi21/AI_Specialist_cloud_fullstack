@@ -20,7 +20,7 @@ What is delivered:
 - The back-office and after-sales requirements from the architecture slide (slide 4), added after the first review: **guest / member / administrator** access,
   **logout**, **stores and store policies**, **catalogue administration**, **shipments with zone-based delivery rates and tracking**, **order modification**,
   **returns with refunds**, and **up-sell / cross-sell** suggestions. See section 4.
-- **74 automated backend tests**, a **88-request Postman collection** with assertions, and a scripted browser walk-through of the full customer and administrator journeys.
+- **79 automated backend tests**, a **88-request Postman collection** with assertions, and a scripted browser walk-through of the full customer and administrator journeys.
 - Dockerfiles, `docker-compose.yml` and OpenShift manifests.
 
 All prices are in **Indian rupees (₹)**, matching the wireframes.
@@ -123,7 +123,7 @@ There is no real payment processor. A `PaymentGateway` class validates the instr
 
 | Check | Result |
 |---|---|
-| Backend: `./mvnw test` | **74 tests pass**: 4 book, 14 API integration, 14 lifecycle integration (slide 4), 7 security, 3 secret guard, 5 login limiter, 10 order, 7 payment, 6 pricing/coupon, 4 refund maths |
+| Backend: `./mvnw test` | **79 tests pass**: 4 book, 14 API integration, 14 lifecycle integration (slide 4), 7 security, 6 secret guard, 5 login limiter, 12 order, 7 payment, 6 pricing/coupon, 4 refund maths |
 | API integration | Boots the whole app on H2 with the real `schema.sql` and `data.sql` and drives it over HTTP: filters, shelves, auth, wishlist, writers, reviews, coupons, quote, address validation, declined card, checkout, cancel, wallet |
 | Postman collection | **88 requests in 14 folders.** The 49 new requests (folders 8 to 13) carry test scripts and were replayed with Newman against a freshly seeded server: all 65 assertions pass. The original 36 requests still work |
 | OpenAPI | Parses; every `$ref` resolves; operation ids are unique; **72 operations documented and 72 served**, none missing either way; every `/admin` operation is secured and documents a 403; public and secured status matches what the live server does for guests |
@@ -131,11 +131,40 @@ There is no real payment processor. A `PaymentGateway` class validates the instr
 | Browser walk-through (slide 4) | A scripted Chromium session passed 15 of 15 steps on fresh data, with no console errors: guest vs member catalogue, policies page and rate checker, up-sell and cross-sell, tracking, a return request, sign-out, administrator login, receiving a return, marking an order shipped, creating a members-only category, and the phone navigation. Driving the real screens found two bugs the API tests could not: after signing in, the catalogue did not reload so a member still saw the guest list, and the admin forms ran off the edge of a 375px phone. Both are fixed |
 | Browser walk-through (original) | A scripted Chrome session passed 17 of 17 steps: landing, filters, sign-in, product page, review, wishlist, writers, basket, checkout validation, bad and good coupon, declined card, successful order, cancel, wallet top-up, phone layout. It also caught and led to fixes for a cramped phone navigation bar, stacking notifications and broken cover titles |
 
-**Not verified here — please read:**
+### Run on a real PostgreSQL (the first review's gap)
 
-- **PostgreSQL and Docker were not run.** This machine has no Docker and no Postgres server. The PostgreSQL scripts (`backend/src/main/resources/db/postgres/`) were generated from the H2 ones and executed twice on H2 in PostgreSQL mode to prove they are idempotent, but real PostgreSQL has not accepted them yet. The default profile is **H2 in memory**; PostgreSQL is selected with `SPRING_PROFILES_ACTIVE=postgres` (this is what `docker-compose.yml` does). Run `docker compose up --build` once on a machine with Docker before recording the video.
-- **The OpenShift manifest was parsed but not applied** to a cluster.
-- The security checks in section 5 were run against the in-memory database. Behaviour that depends on a real PostgreSQL (the new tables, the `ALTER ... IF NOT EXISTS` upgrade lines, the new seed rows) has not been run on one.
+The first review said the PostgreSQL scripts had not been validated on a live database. They have now been run on **PostgreSQL 16.16**
+(a native Windows build of the real server, started on its own port; Docker was not available on the machine). That is genuine PostgreSQL
+with its own SQL dialect and stricter typing, but it is **not** the Red Hat container image the OpenShift manifest uses, and it was not run through Docker.
+The whole sequence is scripted in [`deploy/verify-postgres.sh`](deploy/verify-postgres.sh) so it can be repeated on a machine with Docker.
+
+| Check | Result on PostgreSQL 16.16 |
+|---|---|
+| Fresh database, `postgres` profile | The schema script created **22 tables**, the seed script loaded the data (3 users, 17 books, 6 categories, 1 store with policies, 2 orders), and Hibernate's `ddl-auto: validate` accepted all entities against the tables |
+| Data really is in the database | Row counts read straight from PostgreSQL over JDBC (slide 12, step 8: "check data is saved in the database") |
+| API replayed | The 49 new Postman requests (65 assertions) pass: roles, logout, stores, catalogue administration, shipments, returns with refunds, up-sell and cross-sell. This includes a `GROUP BY ... ORDER BY COUNT` query that H2 is lenient about |
+| Restart changes nothing | After a return was refunded and a store created, the app was restarted: identical row counts, the refund and the restock intact, nothing duplicated |
+| IDs cannot collide | With a row at id 500, the next id after restart was 501, not a fall-back to 100 |
+| Upgrade in place | A database built from the **previous release's** scripts (16 tables, a customer order inside) was upgraded by starting the new version: 22 tables, new columns added with defaults, the old order kept |
+
+**Bugs only the real PostgreSQL run found** (none appeared on H2):
+1. **Fresh database failed to start** with `Schema-validation: missing table [addresses]`. The default profile defers the SQL scripts until after Hibernate (right for H2, where Hibernate creates the tables), and the `postgres` profile inherited that, so Hibernate validated tables the scripts had not created yet. This would have broken `docker compose up` and the OpenShift deploy on first start. Fixed in `application-postgres.yml`.
+2. **Modifying an order from before delivery zones existed returned a 500** (a null zone was compared). It only exists in an upgraded database, never in a fresh H2. Fixed, with tests that fail without the fix.
+3. **A signing secret generated with the recommended command was rejected on Windows.** `openssl` there ends lines with CRLF, and the stray carriage return failed the guard's strict base64 check. The scripts now strip it, and the guard ignores surrounding whitespace.
+4. **Two defects in the verification script itself**, found by running it: it trusted any healthy answer on its port (so a leftover application could make a run "pass" against the wrong database), and its restart step stopped the Maven wrapper but not the Java process, so the "restart" did nothing. Both fixed; the script now refuses to start if the port is taken and waits for the port to free.
+
+### OpenShift manifest: checked, not applied
+
+- The manifest has 12 resources. **11 pass strict schema validation** (`kubeconform`, Kubernetes 1.30); the OpenShift `Route` is not in that schema, so it was skipped by the validator and checked by hand.
+- A review found and fixed gaps a schema cannot see: the Secret was in the file with placeholder values (it is now created by the deploy script from real random values, and the pods fail loudly without it); no container had a security context (all now drop every capability, forbid privilege escalation, require non-root and use the runtime seccomp profile); nothing restricted network traffic (four NetworkPolicies now allow only router to frontend to backend to database, and the labels, ports and Service selectors were cross-checked); the backend had no startup probe and a 90-second guess for a slow first start; and the two images this project builds were tagged `:latest`.
+- The Red Hat PostgreSQL image keeps its floating `:latest` tag: a pinned tag could not be verified from this machine (the registry needs a login), and a wrong one would stop the database from starting.
+- [`deploy/deploy-openshift.sh`](deploy/deploy-openshift.sh) creates the secrets, builds the images in the cluster, applies the manifest and then **prints the evidence**: pods, route, health, a real sign-in through the public URL, row counts out of the database pod, and a network-policy probe. The probe reports `BLOCKED`, `REACHABLE` or `INCONCLUSIVE` and only counts a real connection timeout as the policy working; its classification was tested locally against open, closed, unresolvable and non-routable targets.
+- **It has not been applied to a cluster.** No cluster was available. This remains the one open item from the first review. Running `deploy/deploy-openshift.sh` on the free Red Hat Developer Sandbox produces the evidence.
+
+### Still not verified
+
+- **A live OpenShift or Kubernetes cluster**, as above. That includes the `Route`, image builds in the cluster, the NetworkPolicies being enforced, and the application running as OpenShift's arbitrary non-root user.
+- **The container images.** Neither Dockerfile has been built or run here.
 - The automated test generator named on slide 11 (ICA Agent) was **not** used. The tests in this repository were written directly. If you used the ICA Agent, add that to the journal; otherwise say so honestly in the video.
 
 ---
@@ -153,7 +182,7 @@ What is protected, how, and how it was checked. The **limits** are listed as pla
 | Authorization | URL rules and `@PreAuthorize` both require `ROLE_ADMIN` for `/admin`. A customer gets a clear 403 (an explicit handler writes it; without it the container turned it into a misleading 401). Members-only books are filtered in every query path, not only the list. | `LifecycleApiIntegrationTest`, `SecurityIntegrationTest` |
 | Logout | The token's id is stored until it would have expired; the filter refuses it. Logging out twice is harmless. | `LifecycleApiIntegrationTest` |
 | Password guessing | Five wrong passwords for one email in five minutes pause sign-in for that email (429), without locking other accounts. Memory is bounded: each email keeps at most five timestamps, expired entries are swept, and at most 10,000 emails are tracked (oldest evicted first). | `LifecycleApiIntegrationTest`, `LoginAttemptLimiterTest` (with a movable clock; removing the cap or the expiry makes it fail) |
-| Weak signing secret | On the `postgres` (production-like) profile the app **refuses to start** if `JWT_SECRET` is the demo value published in the repository, is not base64, or is under 32 bytes. | `JwtSecretGuardTest` reads the real files; confirmed by booting the app both ways |
+| Weak signing secret | On the `postgres` (production-like) profile the app **refuses to start** if `JWT_SECRET` is the demo value published in the repository, is not base64, is under 32 bytes, or looks guessable (a short pattern repeated, very few different characters, or a long run of one character, such as `ChangeMe...` or a real key padded with zeros). Surrounding whitespace from a pasted secret is ignored. | `JwtSecretGuardTest` reads the real files, and checks that 2,000 random secrets are never refused; each rule was shown to fail its test when removed; confirmed by booting the app both ways |
 | Injection | JPA with bound parameters and criteria queries; search and sort values are data. An injected `' OR 1=1--` matches nothing and a `DROP TABLE` in a sort value does nothing. | `SecurityIntegrationTest` |
 | Response headers | `X-Content-Type-Options: nosniff`, framing denied (same-origin only while the H2 console is enabled), `Referrer-Policy: no-referrer`, and `Content-Security-Policy: default-src 'none'` on API responses (not on Swagger UI, which needs its own scripts). | `SecurityIntegrationTest` |
 | Operational endpoints | `/actuator/health` is public for platform probes; every other actuator path is administrator-only. The H2 console only exists while its dev setting is on (the `postgres` profile turns it off). | `SecurityIntegrationTest` |
@@ -173,6 +202,7 @@ What is protected, how, and how it was checked. The **limits** are listed as pla
 - **There is no rate limit outside sign-in**, no account lockout notification, and no multi-factor authentication.
 - **TLS is not terminated by the application.** On OpenShift the Route does it (edge termination, HTTP redirected); the local Docker setup is plain HTTP.
 - **No dependency or image vulnerability scan was run** here.
+- **The Red Hat database image is not pinned to an exact version** (see above).
 - **Payments are simulated.** No real processor is involved, so none of the controls above has been exercised against one.
 
 ---
@@ -193,6 +223,10 @@ npm run dev                     # http://localhost:5173
 
 Demo account: `alex.dev@ibm.com` / `Password123!` (the **Use demo account** button fills it in). It starts with 250 gift points and ₹1,500 in the wallet.
 
+**Prove it on PostgreSQL** (needs Docker): `deploy/verify-postgres.sh` starts a throwaway PostgreSQL 16, boots the backend on it, replays the API collection, restarts the backend and checks nothing changed.
+
+**Deploy to OpenShift** (needs `oc` and a cluster, for example the free Red Hat Developer Sandbox): `oc login ...` then `deploy/deploy-openshift.sh` (pass your sandbox namespace as the first argument). It prints the evidence at the end.
+
 **PostgreSQL via Docker**
 
 ```powershell
@@ -204,7 +238,7 @@ Database credentials come from `POSTGRES_USER`, `POSTGRES_PASSWORD` and `JWT_SEC
 
 ```powershell
 cd backend
-./mvnw test                     # 74 tests
+./mvnw test                     # 79 tests
 ```
 
 ---
@@ -225,4 +259,4 @@ Slide 11 asks for a recorded video that describes the steps. Before recording, s
 
 **[4:15 – 5:00] After-sales and administration (slide 4).** On **My Orders** show **Track** (carrier, tracking number, timeline) and **Return books** on the delivered order. Sign out, sign in as the administrator, open **Admin**, go to **Returns** and press *Received: restock and refund*; point out that the refund and the stock change only now. Show **Orders & shipping** (mark shipped), and create a members-only category to show a guest cannot see it.
 
-**[5:00 – 5:45] API, tests, security and deployment.** Open Swagger UI and run one call. Show `docs/openapi.yaml` (72 operations), run `./mvnw test` (74 tests), then show the security section of this report, `docker-compose.yml`, the Dockerfiles, `deploy/k8s/bookstore-roks-deployment.yaml` and the GitHub pull request. If you used the ICA Agent for any tests, say so here; if not, say the tests were written directly.
+**[5:00 – 5:45] API, tests, security and deployment.** Open Swagger UI and run one call. Show `docs/openapi.yaml` (72 operations), run `./mvnw test` (79 tests), then show the security section of this report, `docker-compose.yml`, the Dockerfiles, `deploy/k8s/bookstore-roks-deployment.yaml` and the GitHub pull request. If you used the ICA Agent for any tests, say so here; if not, say the tests were written directly.
